@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#000080">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Password Generator</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: #008080;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "MS Sans Serif", "Segoe UI", Tahoma, Geneva, sans-serif;
+  padding: 10px;
+}
+
+.win95-window {
+  background: #c0c0c0;
+  border: 2px solid;
+  border-color: #ffffff #808080 #808080 #ffffff;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 2px 2px 0 #000;
+}
+
+.win95-titlebar {
+  background: linear-gradient(90deg, #000080, #1084d0);
+  color: white;
+  font-weight: bold;
+  font-size: 13px;
+  padding: 3px 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.win95-titlebar-buttons {
+  display: flex;
+  gap: 2px;
+}
+
+.win95-btn-sm {
+  width: 16px;
+  height: 14px;
+  background: #c0c0c0;
+  border: 1px solid;
+  border-color: #ffffff #808080 #808080 #ffffff;
+  font-size: 8px;
+  text-align: center;
+  line-height: 14px;
+  color: black;
+  cursor: default;
+  font-weight: bold;
+}
+
+.win95-body {
+  padding: 12px;
+}
+
+.win95-label {
+  font-size: 12px;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.win95-row {
+  margin-bottom: 10px;
+}
+
+.win95-slider {
+  width: 100%;
+}
+
+.win95-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.win95-value-box {
+  background: #fff;
+  border: 2px solid;
+  border-color: #808080 #ffffff #ffffff #808080;
+  padding: 2px 6px;
+  font-size: 12px;
+  min-width: 30px;
+  text-align: center;
+}
+
+.win95-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.win95-checkbox-row input {
+  width: 13px;
+  height: 13px;
+}
+
+.win95-button {
+  background: #c0c0c0;
+  border: 2px solid;
+  border-color: #ffffff #808080 #808080 #ffffff;
+  padding: 6px 18px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  min-width: 100px;
+}
+
+.win95-button:active {
+  border-color: #808080 #ffffff #ffffff #808080;
+  padding: 7px 17px 5px 19px;
+}
+
+.win95-button:focus {
+  outline: 1px dotted #000;
+  outline-offset: -4px;
+}
+
+.win95-display {
+  background: #fff;
+  border: 2px solid;
+  border-color: #808080 #ffffff #ffffff #808080;
+  padding: 8px;
+  font-family: "Courier New", monospace;
+  font-size: 16px;
+  min-height: 36px;
+  word-break: break-all;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.win95-statusbar {
+  background: #c0c0c0;
+  border-top: 2px solid #808080;
+  border-right: 2px solid #ffffff;
+  padding: 3px 6px;
+  font-size: 11px;
+  display: flex;
+  gap: 4px;
+}
+
+.win95-statusbar-field {
+  flex: 1;
+  border: 1px solid;
+  border-color: #808080 #ffffff #ffffff #808080;
+  padding: 2px 4px;
+}
+
+.win95-btn-group {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.win95-fieldset {
+  border: 2px solid;
+  border-color: #808080 #ffffff #ffffff #808080;
+  padding: 8px;
+  margin-bottom: 10px;
+}
+</style>
+</head>
+<body>
+<div class="win95-window">
+  <div class="win95-titlebar">
+    <span>🔐 Password Generator</span>
+    <div class="win95-titlebar-buttons">
+      <span class="win95-btn-sm">_</span>
+      <span class="win95-btn-sm">□</span>
+      <span class="win95-btn-sm">✕</span>
+    </div>
+  </div>
+  <div class="win95-body">
+    <div class="win95-row">
+      <label class="win95-label">Длина пароля:</label>
+      <div class="win95-slider-row">
+        <input type="range" min="4" max="32" value="12" class="win95-slider" id="lengthSlider">
+        <div class="win95-value-box" id="lengthValue">12</div>
+      </div>
+    </div>
+    <fieldset class="win95-fieldset">
+      <legend style="font-size:12px;">Параметры</legend>
+      <div class="win95-checkbox-row">
+        <input type="checkbox" id="upper" checked>
+        <label for="upper">Заглавные буквы (A-Z)</label>
+      </div>
+      <div class="win95-checkbox-row">
+        <input type="checkbox" id="lower" checked>
+        <label for="lower">Строчные буквы (a-z)</label>
+      </div>
+      <div class="win95-checkbox-row">
+        <input type="checkbox" id="digits" checked>
+        <label for="digits">Цифры (0-9)</label>
+      </div>
+      <div class="win95-checkbox-row">
+        <input type="checkbox" id="symbols" checked>
+        <label for="symbols">Спецсимволы (!@#$...)</label>
+      </div>
+    </fieldset>
+    <div class="win95-row">
+      <label class="win95-label">Результат:</label>
+      <div class="win95-display" id="result">Нажми "Сгенерировать"</div>
+    </div>
+    <div class="win95-btn-group">
+      <button class="win95-button" id="generateBtn">Сгенерировать</button>
+      <button class="win95-button" id="copyBtn">Скопировать</button>
+    </div>
+  </div>
+  <div class="win95-statusbar">
+    <div class="win95-statusbar-field" id="strengthField">Готово</div>
+    <div class="win95-statusbar-field">v1.0</div>
+  </div>
+</div>
+
+<script>
+const slider = document.getElementById('lengthSlider');
+const lengthValue = document.getElementById('lengthValue');
+const result = document.getElementById('result');
+const strengthField = document.getElementById('strengthField');
+const generateBtn = document.getElementById('generateBtn');
+const copyBtn = document.getElementById('copyBtn');
+
+slider.addEventListener('input', () => { lengthValue.textContent = slider.value; });
+
+function generatePassword() {
+  const len = parseInt(slider.value);
+  let chars = '';
+  let required = [];
+  
+  if (document.getElementById('upper').checked) {
+    chars += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    required.push(randomFrom('ABCDEFGHIJKLMNOPQRSTUVWXYZ'));
+  }
+  if (document.getElementById('lower').checked) {
+    chars += 'abcdefghijklmnopqrstuvwxyz';
+    required.push(randomFrom('abcdefghijklmnopqrstuvwxyz'));
+  }
+  if (document.getElementById('digits').checked) {
+    chars += '0123456789';
+    required.push(randomFrom('0123456789'));
+  }
+  if (document.getElementById('symbols').checked) {
+    chars += '!@#$%^&*()-_=+[]{};:,.?';
+    required.push(randomFrom('!@#$%^&*()-_=+[]{};:,.?'));
+  }
+  
+  if (chars === '') {
+    result.textContent = 'Выберите хотя бы один тип символов!';
+    strengthField.textContent = 'Ошибка';
+    return;
+  }
+  
+  const remaining = len - required.length;
+  let pwd = required.join('');
+  for (let i = 0; i < remaining; i++) {
+    pwd += randomFrom(chars);
+  }
+  pwd = shuffle(pwd);
+  result.textContent = pwd;
+  
+  let strength = 'Слабый';
+  let types = required.length;
+  if (len >= 12 && types >= 3) strength = 'Сильный';
+  else if (len >= 8 && types >= 2) strength = 'Средний';
+  strengthField.textContent = 'Надёжность: ' + strength;
+}
+
+function randomFrom(str) {
+  return str.charAt(Math.floor(Math.random() * str.length));
+}
+
+function shuffle(str) {
+  const arr = str.split('');
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr.join('');
+}
+
+generateBtn.addEventListener('click', generatePassword);
+
+copyBtn.addEventListener('click', () => {
+  const text = result.textContent;
+  if (text && text !== 'Нажми "Сгенерировать"' && text !== 'Выберите хотя бы один тип символов!') {
+    navigator.clipboard.writeText(text).then(() => {
+      const orig = copyBtn.textContent;
+      copyBtn.textContent = 'Скопировано!';
+      setTimeout(() => { copyBtn.textContent = orig; }, 1200);
+    }).catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      copyBtn.textContent = 'Скопировано!';
+      setTimeout(() => { copyBtn.textContent = 'Скопировать'; }, 1200);
+    });
+  }
+});
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js');
+}
+</script>
+</body>
+</html>
