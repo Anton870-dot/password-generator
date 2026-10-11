@@ -312,16 +312,6 @@ body {
   to   { background-position: 0 0; }
 }
 
-.boot-skip {
-  position: absolute;
-  bottom: 22px;
-  left: 0;
-  right: 0;
-  text-align: center;
-  font-size: 11px;
-  color: #003;
-  opacity: .7;
-}
 </style>
 </head>
 <body>
@@ -335,7 +325,6 @@ body {
     <div class="boot-status" id="bootStatus">Запуск Password Generator 95...</div>
     <div class="boot-bar"><div class="boot-bar-fill"></div></div>
   </div>
-  <div class="boot-skip">Нажмите, чтобы пропустить</div>
   <div class="boot-strip"></div>
 </div>
 <div class="win95-window">
@@ -385,7 +374,7 @@ body {
   </div>
   <div class="win95-statusbar">
     <div class="win95-statusbar-field" id="strengthField">Готово</div>
-    <div class="win95-statusbar-field">v1.3</div>
+    <div class="win95-statusbar-field">v1.4</div>
   </div>
 </div>
 
@@ -415,7 +404,6 @@ body {
     if (boot.parentNode) boot.parentNode.removeChild(boot);
   }
   const timer = setTimeout(finish, BOOT_MS);
-  boot.addEventListener('click', finish);
 })();
 
 const slider = document.getElementById('lengthSlider');
