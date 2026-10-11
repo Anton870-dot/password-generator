@@ -186,7 +186,7 @@ body {
   </div>
   <div class="win95-body">
     <div class="win95-row">
-      <label class="win95-label">Длина пароля:</label>
+      <label class="win95-label" for="lengthSlider">Длина пароля:</label>
       <div class="win95-slider-row">
         <input type="range" min="4" max="32" value="12" class="win95-slider" id="lengthSlider">
         <div class="win95-value-box" id="lengthValue">12</div>
@@ -222,7 +222,7 @@ body {
   </div>
   <div class="win95-statusbar">
     <div class="win95-statusbar-field" id="strengthField">Готово</div>
-    <div class="win95-statusbar-field">v1.0</div>
+    <div class="win95-statusbar-field">v1.1</div>
   </div>
 </div>
 
@@ -233,6 +233,7 @@ const result = document.getElementById('result');
 const strengthField = document.getElementById('strengthField');
 const generateBtn = document.getElementById('generateBtn');
 const copyBtn = document.getElementById('copyBtn');
+let hasPassword = false;
 
 slider.addEventListener('input', () => { lengthValue.textContent = slider.value; });
 
@@ -261,6 +262,7 @@ function generatePassword() {
   if (chars === '') {
     result.textContent = 'Выберите хотя бы один тип символов!';
     strengthField.textContent = 'Ошибка';
+    hasPassword = false;
     return;
   }
   
@@ -272,21 +274,35 @@ function generatePassword() {
   pwd = shuffle(pwd);
   result.textContent = pwd;
   
+  hasPassword = true;
+
+  // Оценка по энтропии: длина × log2(размер набора символов)
+  const bits = Math.round(len * Math.log2(chars.length));
   let strength = 'Слабый';
-  let types = required.length;
-  if (len >= 12 && types >= 3) strength = 'Сильный';
-  else if (len >= 8 && types >= 2) strength = 'Средний';
-  strengthField.textContent = 'Надёжность: ' + strength;
+  if (bits >= 100) strength = 'Очень сильный';
+  else if (bits >= 72) strength = 'Сильный';
+  else if (bits >= 50) strength = 'Средний';
+  strengthField.textContent = 'Надёжность: ' + strength + ' (' + bits + ' бит)';
+}
+
+// Криптостойкое случайное целое в диапазоне [0, max) без перекоса
+function randomInt(max) {
+  const limit = Math.floor(0x100000000 / max) * max;
+  const buf = new Uint32Array(1);
+  do {
+    crypto.getRandomValues(buf);
+  } while (buf[0] >= limit);
+  return buf[0] % max;
 }
 
 function randomFrom(str) {
-  return str.charAt(Math.floor(Math.random() * str.length));
+  return str.charAt(randomInt(str.length));
 }
 
 function shuffle(str) {
   const arr = str.split('');
   for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = randomInt(i + 1);
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   return arr.join('');
@@ -294,28 +310,39 @@ function shuffle(str) {
 
 generateBtn.addEventListener('click', generatePassword);
 
+function flashCopy(ok) {
+  copyBtn.textContent = ok ? 'Скопировано!' : 'Не удалось';
+  setTimeout(() => { copyBtn.textContent = 'Скопировать'; }, 1200);
+}
+
+function legacyCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  document.body.removeChild(ta);
+  return ok;
+}
+
 copyBtn.addEventListener('click', () => {
+  if (!hasPassword) return;
   const text = result.textContent;
-  if (text && text !== 'Нажми "Сгенерировать"' && text !== 'Выберите хотя бы один тип символов!') {
-    navigator.clipboard.writeText(text).then(() => {
-      const orig = copyBtn.textContent;
-      copyBtn.textContent = 'Скопировано!';
-      setTimeout(() => { copyBtn.textContent = orig; }, 1200);
-    }).catch(() => {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      copyBtn.textContent = 'Скопировано!';
-      setTimeout(() => { copyBtn.textContent = 'Скопировать'; }, 1200);
-    });
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text)
+      .then(() => flashCopy(true))
+      .catch(() => flashCopy(legacyCopy(text)));
+  } else {
+    flashCopy(legacyCopy(text));
   }
 });
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js');
+  navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 </script>
 </body>
