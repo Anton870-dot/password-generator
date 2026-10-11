@@ -609,7 +609,7 @@ body {
   </div>
   <div class="win95-statusbar">
     <div class="win95-statusbar-field" id="strengthField">Готово</div>
-    <div class="win95-statusbar-field">v1.6</div>
+    <div class="win95-statusbar-field">v1.7</div>
   </div>
 </div>
 </div>
@@ -641,7 +641,7 @@ body {
       <div class="about-icon">🔐</div>
       <div class="about-text">
         <p><b>Password Generator 95</b></p>
-        <p>Версия 1.6</p>
+        <p>Версия 1.7</p>
         <p>Пароли создаются на этом устройстве и никуда не отправляются.</p>
         <div class="about-line"></div>
         <p>Физической памяти свободно: 640 КБ</p>
@@ -1007,6 +1007,8 @@ function updateSoundLabels() {
   });
 }
 
+let exitTimer = null;
+
 function shutDown() {
   closeMenus();
   about.classList.remove('show');
@@ -1017,6 +1019,11 @@ function shutDown() {
   setMinimized(false);
   Sound.shutdown();
   shutdownScreen.classList.add('show');
+  // Даём дочитать надпись и доиграть мелодию, затем закрываем приложение.
+  // Браузер разрешает это не везде: если не закроется, экран останется,
+  // и приложение можно «включить» касанием.
+  clearTimeout(exitTimer);
+  exitTimer = setTimeout(() => { try { window.close(); } catch (e) {} }, 3000);
 }
 
 const actions = {
@@ -1060,6 +1067,7 @@ document.getElementById('aboutClose').addEventListener('click', () => about.clas
 
 // «включение» после завершения работы
 shutdownScreen.addEventListener('click', () => {
+  clearTimeout(exitTimer);
   shutdownScreen.classList.remove('show');
   startBoot();
 });
