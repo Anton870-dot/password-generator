@@ -609,7 +609,7 @@ body {
   </div>
   <div class="win95-statusbar">
     <div class="win95-statusbar-field" id="strengthField">Готово</div>
-    <div class="win95-statusbar-field">v1.5</div>
+    <div class="win95-statusbar-field">v1.6</div>
   </div>
 </div>
 </div>
@@ -641,7 +641,7 @@ body {
       <div class="about-icon">🔐</div>
       <div class="about-text">
         <p><b>Password Generator 95</b></p>
-        <p>Версия 1.5</p>
+        <p>Версия 1.6</p>
         <p>Пароли создаются на этом устройстве и никуда не отправляются.</p>
         <div class="about-line"></div>
         <p>Физической памяти свободно: 640 КБ</p>
@@ -703,15 +703,85 @@ const Sound = (function () {
     schedule(notes);
   }
 
-  const CHIME = [
-    [311.13, 0.00, 2.6, 'triangle', 0.10],
-    [466.16, 0.18, 2.5, 'sine', 0.10],
-    [622.25, 0.40, 2.4, 'sine', 0.09],
-    [783.99, 0.66, 2.6, 'sine', 0.08],
-    [932.33, 0.96, 2.8, 'sine', 0.07],
-    [1244.5, 1.34, 3.2, 'sine', 0.06],
-    [155.56, 0.00, 3.6, 'sine', 0.10]
-  ];
+  // Мелодия запуска: мягкие синтезаторные аккорды, колокольчики и эхо.
+  // Собственная мелодия, синтезируется на лету.
+  function chime(c) {
+    const t0 = c.currentTime + 0.05;
+    const master = c.createGain();
+    master.gain.value = 2.2;
+    master.connect(c.destination);
+
+    // эхо
+    const delay = c.createDelay(1);
+    const feedback = c.createGain();
+    const wet = c.createGain();
+    delay.delayTime.value = 0.34;
+    feedback.gain.value = 0.34;
+    wet.gain.value = 0.4;
+    master.connect(delay);
+    delay.connect(feedback);
+    feedback.connect(delay);
+    delay.connect(wet);
+    wet.connect(c.destination);
+
+    // «тёплый» аккорд: две слегка расстроенные пилы через плавно открывающийся фильтр
+    function pad(freq, start, dur, vol) {
+      const s = t0 + start;
+      const f = c.createBiquadFilter();
+      const g = c.createGain();
+      f.type = 'lowpass';
+      f.Q.value = 0.7;
+      f.frequency.setValueAtTime(350, s);
+      f.frequency.linearRampToValueAtTime(2400, s + dur * 0.45);
+      f.frequency.linearRampToValueAtTime(500, s + dur);
+      g.gain.setValueAtTime(0.0001, s);
+      g.gain.linearRampToValueAtTime(vol, s + dur * 0.35);
+      g.gain.setValueAtTime(vol, s + dur * 0.6);
+      g.gain.exponentialRampToValueAtTime(0.0001, s + dur);
+      [-7, 7].forEach(detune => {
+        const o = c.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.value = freq;
+        o.detune.value = detune;
+        o.connect(f);
+        o.start(s);
+        o.stop(s + dur + 0.1);
+      });
+      f.connect(g);
+      g.connect(master);
+    }
+
+    // колокольчик: основной тон и негармонический призвук
+    function bell(freq, start, dur, vol) {
+      const s = t0 + start;
+      [[1, 1], [2.76, 0.22], [5.4, 0.08]].forEach(([mult, level]) => {
+        const o = c.createOscillator();
+        const g = c.createGain();
+        o.type = 'sine';
+        o.frequency.value = freq * mult;
+        g.gain.setValueAtTime(0.0001, s);
+        g.gain.linearRampToValueAtTime(vol * level, s + 0.008);
+        g.gain.exponentialRampToValueAtTime(0.0001, s + dur / mult);
+        o.connect(g);
+        g.connect(master);
+        o.start(s);
+        o.stop(s + dur + 0.1);
+      });
+    }
+
+    // первый аккорд, затем второй — с перекрытием
+    [98.00, 146.83, 246.94, 369.99].forEach(f => pad(f, 0.0, 3.5, 0.045));
+    [146.83, 220.00, 329.63, 369.99, 587.33].forEach(f => pad(f, 2.6, 3.8, 0.04));
+
+    // перезвон поверх
+    bell(987.77, 0.25, 1.8, 0.07);
+    bell(1174.66, 0.55, 1.8, 0.07);
+    bell(1479.98, 0.85, 1.9, 0.065);
+    bell(1760.00, 1.25, 2.4, 0.06);
+    bell(1318.51, 2.75, 1.9, 0.065);
+    bell(1760.00, 3.05, 2.0, 0.06);
+    bell(2349.32, 3.45, 2.8, 0.055);
+  }
 
   // Мелодия запуска. Без касания экрана браузер может запретить звук —
   // тогда она сыграет по первому касанию, пока заставка ещё на экране.
@@ -721,9 +791,9 @@ const Sound = (function () {
     if (!c) return;
     setTimeout(() => {
       if (!isShowing()) return;
-      if (c.state === 'running') { schedule(CHIME); return; }
+      if (c.state === 'running') { chime(c); return; }
       el.addEventListener('pointerdown', () => {
-        c.resume().then(() => { if (on && isShowing()) schedule(CHIME); }).catch(() => {});
+        c.resume().then(() => { if (on && isShowing()) chime(c); }).catch(() => {});
       }, { once: true });
     }, 250);
   }
@@ -737,6 +807,7 @@ const Sound = (function () {
       return on;
     },
     startup,
+    _chime: chime,
     click: () => play([[1400, 0, 0.035, 'square', 0.04]]),
     ding: () => play([[1318.5, 0, 0.5, 'sine', 0.14], [1975.5, 0, 0.35, 'sine', 0.06]]),
     error: () => play([[220, 0, 0.3, 'square', 0.05], [233.08, 0, 0.3, 'square', 0.05]]),
