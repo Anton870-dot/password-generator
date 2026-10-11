@@ -26,10 +26,9 @@ body {
   position: fixed;
   inset: 0;
   display: flex;
-  overflow-y: auto;
+  flex-direction: column;
   font-family: "MS Sans Serif", "Segoe UI", Tahoma, Geneva, sans-serif;
-  padding: 10px;
-  padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+  font-size: 12px;
   touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
@@ -37,7 +36,28 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Рабочий стол: область над панелью задач */
+.desktop {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow-y: auto;
+  overscroll-behavior: none;
+  padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) 10px max(10px, env(safe-area-inset-left));
+}
+
 .win95-window { margin: auto; }
+.win95-window.minimized { display: none; }
+.desktop.max { padding: env(safe-area-inset-top) 0 0 0; }
+.win95-window.maximized {
+  max-width: none;
+  margin: 0;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-shadow: none;
+}
+.win95-window.maximized .win95-body { flex: 1; }
 
 /* Сам пароль выделять можно */
 #result {
@@ -71,17 +91,209 @@ body {
 }
 
 .win95-btn-sm {
-  width: 16px;
-  height: 14px;
+  width: 22px;
+  height: 20px;
   background: #c0c0c0;
   border: 1px solid;
   border-color: #ffffff #808080 #808080 #ffffff;
-  font-size: 8px;
+  font-size: 11px;
   text-align: center;
-  line-height: 14px;
+  line-height: 17px;
   color: black;
   cursor: default;
   font-weight: bold;
+}
+
+.win95-btn-sm:active { border-color: #808080 #ffffff #ffffff #808080; }
+
+/* ---------- Меню ---------- */
+.menubar {
+  display: flex;
+  padding: 1px 2px;
+  border-bottom: 1px solid #808080;
+  box-shadow: 0 1px 0 #fff;
+}
+
+.menubar-item {
+  position: relative;
+  padding: 4px 8px;
+  cursor: default;
+}
+
+.menubar-item.open > span { background: #000080; color: #fff; outline: 4px solid #000080; }
+
+.menu-popup {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 40;
+  min-width: 170px;
+  background: #c0c0c0;
+  border: 2px solid;
+  border-color: #ffffff #808080 #808080 #ffffff;
+  box-shadow: 2px 2px 0 #000;
+  padding: 2px;
+  color: #000;
+  font-weight: normal;
+}
+
+.open > .menu-popup { display: block; }
+
+.menu-item {
+  padding: 7px 14px 7px 22px;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.menu-item:active { background: #000080; color: #fff; }
+
+.menu-sep {
+  height: 2px;
+  margin: 3px 2px;
+  border-top: 1px solid #808080;
+  border-bottom: 1px solid #fff;
+}
+
+/* ---------- Панель задач ---------- */
+.taskbar {
+  position: relative;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #c0c0c0;
+  border-top: 2px solid #fff;
+  padding: 3px 3px calc(3px + env(safe-area-inset-bottom)) 3px;
+}
+
+.start-wrap { position: relative; }
+
+.task-btn {
+  height: 28px;
+  background: #c0c0c0;
+  border: 2px solid;
+  border-color: #ffffff #808080 #808080 #ffffff;
+  font-family: inherit;
+  font-size: 12px;
+  color: #000;
+  padding: 0 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.start-btn { font-weight: bold; }
+
+.task-btn.active,
+.start-wrap.open > .start-btn {
+  border-color: #808080 #ffffff #ffffff #808080;
+  background: #dcdcdc;
+}
+
+#taskBtn { flex: 0 1 170px; min-width: 0; text-align: left; }
+
+.task-clock {
+  margin-left: auto;
+  height: 28px;
+  line-height: 24px;
+  padding: 0 10px;
+  border: 2px solid;
+  border-color: #808080 #ffffff #ffffff #808080;
+}
+
+.start-menu {
+  top: auto;
+  bottom: calc(100% + 3px);
+  min-width: 210px;
+  padding: 2px 2px 2px 26px;
+}
+
+.start-menu::before {
+  content: "Password Generator 95";
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  bottom: 2px;
+  width: 22px;
+  background: linear-gradient(0deg, #000080, #1084d0);
+  color: #fff;
+  font-weight: bold;
+  font-size: 11px;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  text-align: left;
+  padding: 6px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.start-menu .menu-item { padding: 10px 14px 10px 10px; }
+
+/* ---------- Окно «О программе» ---------- */
+.modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal.show { display: flex; }
+
+.modal .win95-window { max-width: 320px; }
+
+.about-body {
+  display: flex;
+  gap: 12px;
+  padding: 14px 12px 6px;
+}
+
+.about-icon { font-size: 36px; line-height: 1; }
+
+.about-text p { margin-bottom: 6px; }
+
+.about-line {
+  border-top: 1px solid #808080;
+  border-bottom: 1px solid #fff;
+  margin: 8px 0;
+}
+
+/* ---------- Экран выключения ---------- */
+.shutdown {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: #000;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.shutdown.show { display: flex; }
+
+.shutdown-text {
+  color: #ff8c1a;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 24px;
+  font-weight: bold;
+  line-height: 1.35;
+  max-width: 320px;
+}
+
+.shutdown-hint {
+  position: absolute;
+  bottom: calc(28px + env(safe-area-inset-bottom));
+  left: 0;
+  right: 0;
+  color: #666;
+  font-size: 11px;
 }
 
 .win95-body {
@@ -183,6 +395,8 @@ body {
   border-color: #808080 #ffffff #ffffff #808080;
   padding: 2px 4px;
 }
+
+.win95-statusbar-field:last-child { flex: 0 0 auto; }
 
 .win95-btn-group {
   display: flex;
@@ -327,13 +541,34 @@ body {
   </div>
   <div class="boot-strip"></div>
 </div>
-<div class="win95-window">
+<div class="desktop" id="desktop">
+<div class="win95-window" id="mainWindow">
   <div class="win95-titlebar">
     <span>🔐 Password Generator</span>
     <div class="win95-titlebar-buttons">
-      <span class="win95-btn-sm">_</span>
-      <span class="win95-btn-sm">□</span>
-      <span class="win95-btn-sm">✕</span>
+      <span class="win95-btn-sm" id="minBtn" role="button" aria-label="Свернуть">_</span>
+      <span class="win95-btn-sm" id="maxBtn" role="button" aria-label="Развернуть">□</span>
+      <span class="win95-btn-sm" id="closeBtn" role="button" aria-label="Закрыть">✕</span>
+    </div>
+  </div>
+  <div class="menubar">
+    <div class="menubar-item" data-menu><span>Файл</span>
+      <div class="menu-popup">
+        <div class="menu-item" data-action="generate">Сгенерировать</div>
+        <div class="menu-item" data-action="copy">Скопировать</div>
+        <div class="menu-sep"></div>
+        <div class="menu-item" data-action="shutdown">Выход</div>
+      </div>
+    </div>
+    <div class="menubar-item" data-menu><span>Параметры</span>
+      <div class="menu-popup">
+        <div class="menu-item" data-action="sound">Звук</div>
+      </div>
+    </div>
+    <div class="menubar-item" data-menu><span>Справка</span>
+      <div class="menu-popup">
+        <div class="menu-item" data-action="about">О программе...</div>
+      </div>
     </div>
   </div>
   <div class="win95-body">
@@ -374,37 +609,186 @@ body {
   </div>
   <div class="win95-statusbar">
     <div class="win95-statusbar-field" id="strengthField">Готово</div>
-    <div class="win95-statusbar-field">v1.4</div>
+    <div class="win95-statusbar-field">v1.5</div>
+  </div>
+</div>
+</div>
+
+<div class="taskbar">
+  <div class="start-wrap" data-menu>
+    <button class="task-btn start-btn" id="startBtn">🔑 Пуск</button>
+    <div class="menu-popup start-menu">
+      <div class="menu-item" data-action="restore">🔐 Password Generator</div>
+      <div class="menu-item" data-action="sound">Звук</div>
+      <div class="menu-item" data-action="about">❓ О программе...</div>
+      <div class="menu-sep"></div>
+      <div class="menu-item" data-action="shutdown">⏻ Завершение работы...</div>
+    </div>
+  </div>
+  <button class="task-btn active" id="taskBtn">🔐 Password Generator</button>
+  <div class="task-clock" id="clock">00:00</div>
+</div>
+
+<div class="modal" id="about">
+  <div class="win95-window">
+    <div class="win95-titlebar">
+      <span>О программе</span>
+      <div class="win95-titlebar-buttons">
+        <span class="win95-btn-sm" id="aboutClose" role="button" aria-label="Закрыть">✕</span>
+      </div>
+    </div>
+    <div class="about-body">
+      <div class="about-icon">🔐</div>
+      <div class="about-text">
+        <p><b>Password Generator 95</b></p>
+        <p>Версия 1.5</p>
+        <p>Пароли создаются на этом устройстве и никуда не отправляются.</p>
+        <div class="about-line"></div>
+        <p>Физической памяти свободно: 640 КБ</p>
+        <p>Ресурсов системы: 95% свободно</p>
+      </div>
+    </div>
+    <div class="win95-btn-group" style="margin: 0 0 12px;">
+      <button class="win95-button" id="aboutOk">OK</button>
+    </div>
   </div>
 </div>
 
-<script>
-// ---------- Заставка загрузки ----------
-(function () {
-  const boot = document.getElementById('boot');
-  const status = document.getElementById('bootStatus');
-  const BOOT_MS = 6500;
-  const steps = [
-    'Запуск Password Generator 95...',
-    'Проверка памяти: 640 КБ — хватит всем',
-    'Загрузка букв A-Z, a-z...',
-    'Загрузка цифр и спецсимволов...',
-    'Раскрутка генератора случайных чисел...',
-    'Почти готово...'
-  ];
-  let i = 0;
-  const ticker = setInterval(() => {
-    i++;
-    if (i < steps.length) status.textContent = steps[i];
-  }, BOOT_MS / steps.length);
+<div class="shutdown" id="shutdown">
+  <div class="shutdown-text">Теперь питание компьютера можно отключить.</div>
+  <div class="shutdown-hint">Коснитесь экрана, чтобы включить</div>
+</div>
 
-  function finish() {
-    clearInterval(ticker);
-    clearTimeout(timer);
-    if (boot.parentNode) boot.parentNode.removeChild(boot);
+<script>
+// ---------- Звуки (синтезируются в браузере, без файлов) ----------
+const Sound = (function () {
+  let ctx = null;
+  let on = true;
+  try { on = localStorage.getItem('pg95-sound') !== '0'; } catch (e) {}
+
+  function ac() {
+    if (!ctx) {
+      const C = window.AudioContext || window.webkitAudioContext;
+      if (!C) return null;
+      ctx = new C();
+    }
+    return ctx;
   }
-  const timer = setTimeout(finish, BOOT_MS);
+
+  // note: [частота, задержка, длительность, форма волны, громкость]
+  function schedule(notes) {
+    const c = ctx;
+    notes.forEach(([freq, delay, dur, type, vol]) => {
+      const o = c.createOscillator();
+      const g = c.createGain();
+      const t = c.currentTime + delay;
+      o.type = type;
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(vol, t + Math.min(0.03, dur / 3));
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g);
+      g.connect(c.destination);
+      o.start(t);
+      o.stop(t + dur + 0.05);
+    });
+  }
+
+  // Звук по нажатию: браузер разрешает его всегда
+  function play(notes) {
+    if (!on) return;
+    const c = ac();
+    if (!c) return;
+    if (c.state === 'suspended') c.resume().catch(() => {});
+    schedule(notes);
+  }
+
+  const CHIME = [
+    [311.13, 0.00, 2.6, 'triangle', 0.10],
+    [466.16, 0.18, 2.5, 'sine', 0.10],
+    [622.25, 0.40, 2.4, 'sine', 0.09],
+    [783.99, 0.66, 2.6, 'sine', 0.08],
+    [932.33, 0.96, 2.8, 'sine', 0.07],
+    [1244.5, 1.34, 3.2, 'sine', 0.06],
+    [155.56, 0.00, 3.6, 'sine', 0.10]
+  ];
+
+  // Мелодия запуска. Без касания экрана браузер может запретить звук —
+  // тогда она сыграет по первому касанию, пока заставка ещё на экране.
+  function startup(el, isShowing) {
+    if (!on) return;
+    const c = ac();
+    if (!c) return;
+    setTimeout(() => {
+      if (!isShowing()) return;
+      if (c.state === 'running') { schedule(CHIME); return; }
+      el.addEventListener('pointerdown', () => {
+        c.resume().then(() => { if (on && isShowing()) schedule(CHIME); }).catch(() => {});
+      }, { once: true });
+    }, 250);
+  }
+
+  return {
+    isOn: () => on,
+    toggle() {
+      on = !on;
+      try { localStorage.setItem('pg95-sound', on ? '1' : '0'); } catch (e) {}
+      if (on) this.ding();
+      return on;
+    },
+    startup,
+    click: () => play([[1400, 0, 0.035, 'square', 0.04]]),
+    ding: () => play([[1318.5, 0, 0.5, 'sine', 0.14], [1975.5, 0, 0.35, 'sine', 0.06]]),
+    error: () => play([[220, 0, 0.3, 'square', 0.05], [233.08, 0, 0.3, 'square', 0.05]]),
+    shutdown: () => play([
+      [932.33, 0.00, 0.5, 'sine', 0.10],
+      [783.99, 0.22, 0.5, 'sine', 0.10],
+      [622.25, 0.44, 0.6, 'sine', 0.10],
+      [311.13, 0.70, 1.6, 'triangle', 0.12]
+    ])
+  };
 })();
+
+// ---------- Заставка загрузки ----------
+const boot = document.getElementById('boot');
+const bootStatus = document.getElementById('bootStatus');
+const bootFill = boot.querySelector('.boot-bar-fill');
+const BOOT_MS = 6500;
+const BOOT_STEPS = [
+  'Запуск Password Generator 95...',
+  'Проверка памяти: 640 КБ — хватит всем',
+  'Загрузка букв A-Z, a-z...',
+  'Загрузка цифр и спецсимволов...',
+  'Раскрутка генератора случайных чисел...',
+  'Почти готово...'
+];
+let bootTicker = null;
+let bootTimer = null;
+let booting = false;
+
+function startBoot() {
+  clearInterval(bootTicker);
+  clearTimeout(bootTimer);
+  booting = true;
+  boot.style.display = '';
+  bootStatus.textContent = BOOT_STEPS[0];
+  // перезапуск анимации полосы загрузки
+  bootFill.style.animation = 'none';
+  void bootFill.offsetWidth;
+  bootFill.style.animation = '';
+
+  let i = 0;
+  bootTicker = setInterval(() => {
+    i++;
+    if (i < BOOT_STEPS.length) bootStatus.textContent = BOOT_STEPS[i];
+  }, BOOT_MS / BOOT_STEPS.length);
+  bootTimer = setTimeout(() => {
+    clearInterval(bootTicker);
+    booting = false;
+    boot.style.display = 'none';
+  }, BOOT_MS);
+  Sound.startup(boot, () => booting);
+}
 
 const slider = document.getElementById('lengthSlider');
 const lengthValue = document.getElementById('lengthValue');
@@ -442,6 +826,7 @@ function generatePassword() {
     result.textContent = 'Выберите хотя бы один тип символов!';
     strengthField.textContent = 'Ошибка';
     hasPassword = false;
+    Sound.error();
     return;
   }
   
@@ -490,6 +875,7 @@ function shuffle(str) {
 generateBtn.addEventListener('click', generatePassword);
 
 function flashCopy(ok) {
+  if (ok) Sound.ding(); else Sound.error();
   copyBtn.textContent = ok ? 'Скопировано!' : 'Не удалось';
   setTimeout(() => { copyBtn.textContent = 'Скопировать'; }, 1200);
 }
@@ -519,6 +905,103 @@ copyBtn.addEventListener('click', () => {
     flashCopy(legacyCopy(text));
   }
 });
+
+// ---------- Окно, меню, панель задач ----------
+const desktop = document.getElementById('desktop');
+const mainWindow = document.getElementById('mainWindow');
+const taskBtn = document.getElementById('taskBtn');
+const maxBtn = document.getElementById('maxBtn');
+const about = document.getElementById('about');
+const shutdownScreen = document.getElementById('shutdown');
+const clock = document.getElementById('clock');
+
+function setMinimized(min) {
+  mainWindow.classList.toggle('minimized', min);
+  taskBtn.classList.toggle('active', !min);
+}
+
+function setMaximized(max) {
+  mainWindow.classList.toggle('maximized', max);
+  desktop.classList.toggle('max', max);
+  maxBtn.textContent = max ? '❐' : '□';
+}
+
+function closeMenus() {
+  document.querySelectorAll('[data-menu].open').forEach(el => el.classList.remove('open'));
+}
+
+function updateSoundLabels() {
+  document.querySelectorAll('[data-action="sound"]').forEach(el => {
+    el.textContent = (Sound.isOn() ? '✓ ' : '✕ ') + 'Звук';
+  });
+}
+
+function shutDown() {
+  closeMenus();
+  about.classList.remove('show');
+  // пароль с экрана убираем
+  result.textContent = 'Нажми "Сгенерировать"';
+  strengthField.textContent = 'Готово';
+  hasPassword = false;
+  setMinimized(false);
+  Sound.shutdown();
+  shutdownScreen.classList.add('show');
+}
+
+const actions = {
+  generate: () => { setMinimized(false); generatePassword(); },
+  copy: () => copyBtn.click(),
+  sound: () => { Sound.toggle(); updateSoundLabels(); },
+  about: () => about.classList.add('show'),
+  restore: () => setMinimized(false),
+  shutdown: shutDown
+};
+
+document.addEventListener('click', e => {
+  const item = e.target.closest('.menu-item');
+  if (item) {
+    closeMenus();
+    const fn = actions[item.dataset.action];
+    if (fn) fn();
+    return;
+  }
+  const opener = e.target.closest('[data-menu]');
+  if (opener) {
+    const wasOpen = opener.classList.contains('open');
+    closeMenus();
+    if (!wasOpen) opener.classList.add('open');
+    return;
+  }
+  closeMenus();
+});
+
+// щелчок при нажатии на любые кнопки и пункты меню
+document.addEventListener('pointerdown', e => {
+  if (e.target.closest('button, .win95-btn-sm, .menu-item, [data-menu] > span, input')) Sound.click();
+});
+
+document.getElementById('minBtn').addEventListener('click', () => setMinimized(true));
+maxBtn.addEventListener('click', () => setMaximized(!mainWindow.classList.contains('maximized')));
+document.getElementById('closeBtn').addEventListener('click', shutDown);
+taskBtn.addEventListener('click', () => setMinimized(!mainWindow.classList.contains('minimized')));
+document.getElementById('aboutOk').addEventListener('click', () => about.classList.remove('show'));
+document.getElementById('aboutClose').addEventListener('click', () => about.classList.remove('show'));
+
+// «включение» после завершения работы
+shutdownScreen.addEventListener('click', () => {
+  shutdownScreen.classList.remove('show');
+  startBoot();
+});
+
+function tickClock() {
+  const d = new Date();
+  clock.textContent = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+tickClock();
+setInterval(tickClock, 10000);
+
+updateSoundLabels();
+startBoot();
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
