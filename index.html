@@ -172,9 +172,147 @@ body {
   padding: 8px;
   margin-bottom: 10px;
 }
+/* ---------- Заставка загрузки ---------- */
+.boot {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: linear-gradient(180deg, #3a8ee0 0%, #7fc0f2 55%, #cfeaff 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 20px 60px;
+  overflow: hidden;
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.boot-cloud {
+  position: absolute;
+  background: rgba(255,255,255,.75);
+  border-radius: 50px;
+  filter: blur(6px);
+  animation: bootDrift 14s linear infinite;
+}
+.boot-cloud.c1 { width: 180px; height: 46px; top: 12%; left: -10%; }
+.boot-cloud.c2 { width: 240px; height: 60px; top: 30%; left: 45%; animation-duration: 20s; }
+.boot-cloud.c3 { width: 150px; height: 40px; top: 68%; left: 10%; animation-duration: 17s; }
+
+@keyframes bootDrift {
+  from { transform: translateX(0); }
+  to   { transform: translateX(60px); }
+}
+
+.boot-logo {
+  position: relative;
+  font-size: 64px;
+  line-height: 1;
+  margin-bottom: 14px;
+  filter: drop-shadow(3px 3px 0 rgba(0,0,0,.35));
+}
+
+.boot-title {
+  position: relative;
+  color: #000;
+  font-family: "Times New Roman", Times, serif;
+  font-size: 30px;
+  font-weight: bold;
+  text-align: center;
+  letter-spacing: .5px;
+}
+
+.boot-title b {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 44px;
+  color: #fff;
+  text-shadow: 2px 2px 0 #000;
+  margin-left: 6px;
+}
+
+.boot-panel {
+  position: relative;
+  margin-top: 34px;
+  width: 100%;
+  max-width: 300px;
+  background: #c0c0c0;
+  border: 2px solid;
+  border-color: #ffffff #808080 #808080 #ffffff;
+  box-shadow: 2px 2px 0 #000;
+  padding: 10px;
+}
+
+.boot-status {
+  font-size: 12px;
+  margin-bottom: 8px;
+  min-height: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.boot-bar {
+  height: 20px;
+  background: #fff;
+  border: 2px solid;
+  border-color: #808080 #ffffff #ffffff #808080;
+  padding: 2px;
+}
+
+.boot-bar-fill {
+  height: 100%;
+  width: 0;
+  background: repeating-linear-gradient(90deg, #000080 0 10px, transparent 10px 12px);
+  animation: bootFill 6.2s steps(24, end) forwards;
+}
+
+@keyframes bootFill {
+  to { width: 100%; }
+}
+
+.boot-strip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 14px;
+  background: linear-gradient(90deg, #000080, #1084d0, #9fd3ff, #1084d0, #000080);
+  background-size: 200% 100%;
+  animation: bootStrip 1.6s linear infinite;
+}
+
+@keyframes bootStrip {
+  from { background-position: 200% 0; }
+  to   { background-position: 0 0; }
+}
+
+.boot-skip {
+  position: absolute;
+  bottom: 22px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 11px;
+  color: #003;
+  opacity: .7;
+}
 </style>
 </head>
 <body>
+<div class="boot" id="boot">
+  <div class="boot-cloud c1"></div>
+  <div class="boot-cloud c2"></div>
+  <div class="boot-cloud c3"></div>
+  <div class="boot-logo">🔐</div>
+  <div class="boot-title">Password Generator<b>95</b></div>
+  <div class="boot-panel">
+    <div class="boot-status" id="bootStatus">Запуск Password Generator 95...</div>
+    <div class="boot-bar"><div class="boot-bar-fill"></div></div>
+  </div>
+  <div class="boot-skip">Нажмите, чтобы пропустить</div>
+  <div class="boot-strip"></div>
+</div>
 <div class="win95-window">
   <div class="win95-titlebar">
     <span>🔐 Password Generator</span>
@@ -222,11 +360,39 @@ body {
   </div>
   <div class="win95-statusbar">
     <div class="win95-statusbar-field" id="strengthField">Готово</div>
-    <div class="win95-statusbar-field">v1.1</div>
+    <div class="win95-statusbar-field">v1.2</div>
   </div>
 </div>
 
 <script>
+// ---------- Заставка загрузки ----------
+(function () {
+  const boot = document.getElementById('boot');
+  const status = document.getElementById('bootStatus');
+  const BOOT_MS = 6500;
+  const steps = [
+    'Запуск Password Generator 95...',
+    'Проверка памяти: 640 КБ — хватит всем',
+    'Загрузка букв A-Z, a-z...',
+    'Загрузка цифр и спецсимволов...',
+    'Раскрутка генератора случайных чисел...',
+    'Почти готово...'
+  ];
+  let i = 0;
+  const ticker = setInterval(() => {
+    i++;
+    if (i < steps.length) status.textContent = steps[i];
+  }, BOOT_MS / steps.length);
+
+  function finish() {
+    clearInterval(ticker);
+    clearTimeout(timer);
+    if (boot.parentNode) boot.parentNode.removeChild(boot);
+  }
+  const timer = setTimeout(finish, BOOT_MS);
+  boot.addEventListener('click', finish);
+})();
+
 const slider = document.getElementById('lengthSlider');
 const lengthValue = document.getElementById('lengthValue');
 const result = document.getElementById('result');
