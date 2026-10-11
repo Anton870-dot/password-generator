@@ -2,7 +2,11 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PassGen">
 <meta name="theme-color" content="#000080">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -10,14 +14,35 @@
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+/* Поведение как у приложения: без «потянуть, чтобы обновить», без масштабирования и выделения */
+html, body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 body {
   background: #008080;
-  min-height: 100vh;
+  position: fixed;
+  inset: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  overflow-y: auto;
   font-family: "MS Sans Serif", "Segoe UI", Tahoma, Geneva, sans-serif;
   padding: 10px;
+  padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.win95-window { margin: auto; }
+
+/* Сам пароль выделять можно */
+#result {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .win95-window {
@@ -360,7 +385,7 @@ body {
   </div>
   <div class="win95-statusbar">
     <div class="win95-statusbar-field" id="strengthField">Готово</div>
-    <div class="win95-statusbar-field">v1.2</div>
+    <div class="win95-statusbar-field">v1.3</div>
   </div>
 </div>
 

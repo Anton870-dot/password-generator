@@ -3,7 +3,9 @@
   "short_name": "PassGen",
   "description": "Генератор паролей в стиле Windows 9x",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#008080",
   "theme_color": "#000080",
   "icons": [
