@@ -262,6 +262,101 @@ body {
   margin: 8px 0;
 }
 
+/* ---------- Экранная заставка ---------- */
+.screensaver {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  background: #000;
+}
+.screensaver.show { display: block; }
+.screensaver canvas { display: block; width: 100%; height: 100%; }
+
+/* ---------- Помощник Ключик ---------- */
+.helper {
+  display: none;
+  position: fixed;
+  right: max(8px, env(safe-area-inset-right));
+  bottom: calc(44px + env(safe-area-inset-bottom));
+  z-index: 45;
+  width: 64px;
+  height: 64px;
+}
+.helper.show { display: block; }
+
+.helper-char {
+  width: 64px;
+  height: 64px;
+  cursor: pointer;
+  filter: drop-shadow(2px 2px 0 rgba(0,0,0,.35));
+  animation: helperBob 3s ease-in-out infinite;
+}
+
+@keyframes helperBob {
+  0%, 100% { transform: translateY(0) rotate(-5deg); }
+  50%      { transform: translateY(-5px) rotate(5deg); }
+}
+
+.helper-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: helperBlink 4.5s infinite;
+}
+
+@keyframes helperBlink {
+  0%, 93%, 100% { transform: scaleY(1); }
+  96%           { transform: scaleY(.1); }
+}
+
+.helper-balloon {
+  display: none;
+  position: absolute;
+  right: 26px;
+  bottom: 74px;
+  width: min(250px, calc(100vw - 50px));
+  background: #ffffe1;
+  border: 1px solid #000;
+  border-radius: 10px;
+  padding: 10px 12px;
+  line-height: 1.4;
+  color: #000;
+  box-shadow: 2px 2px 0 rgba(0,0,0,.3);
+}
+.helper-balloon.show { display: block; }
+
+/* хвостик облачка */
+.helper-balloon::before,
+.helper-balloon::after {
+  content: "";
+  position: absolute;
+  right: 16px;
+  border-style: solid;
+  border-color: transparent;
+}
+.helper-balloon::before { bottom: -13px; border-width: 13px 0 0 13px; border-top-color: #000; }
+.helper-balloon::after  { bottom: -11px; right: 17px; border-width: 11px 0 0 11px; border-top-color: #ffffe1; }
+
+.helper-title { font-weight: bold; margin-bottom: 4px; }
+
+.helper-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.helper-actions button {
+  background: #c0c0c0;
+  border: 2px solid;
+  border-color: #ffffff #808080 #808080 #ffffff;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.helper-actions button:active { border-color: #808080 #ffffff #ffffff #808080; }
+
 /* ---------- Экран выключения ---------- */
 .shutdown {
   display: none;
@@ -277,6 +372,12 @@ body {
 }
 
 .shutdown.show { display: flex; }
+
+/* «Монитор погас»: если закрыть приложение не дали */
+.shutdown .shutdown-text,
+.shutdown .shutdown-hint { transition: opacity 1.5s ease; }
+.shutdown.off .shutdown-text { opacity: 0; }
+.shutdown.off .shutdown-hint { opacity: .35; }
 
 .shutdown-text {
   color: #ff8c1a;
@@ -563,6 +664,7 @@ body {
     <div class="menubar-item" data-menu><span>Параметры</span>
       <div class="menu-popup">
         <div class="menu-item" data-action="sound">Звук</div>
+        <div class="menu-item" data-action="helper">Помощник</div>
       </div>
     </div>
     <div class="menubar-item" data-menu><span>Справка</span>
@@ -609,7 +711,7 @@ body {
   </div>
   <div class="win95-statusbar">
     <div class="win95-statusbar-field" id="strengthField">Готово</div>
-    <div class="win95-statusbar-field">v1.7</div>
+    <div class="win95-statusbar-field">v1.9</div>
   </div>
 </div>
 </div>
@@ -620,6 +722,7 @@ body {
     <div class="menu-popup start-menu">
       <div class="menu-item" data-action="restore">🔐 Password Generator</div>
       <div class="menu-item" data-action="sound">Звук</div>
+      <div class="menu-item" data-action="helper">Помощник</div>
       <div class="menu-item" data-action="about">❓ О программе...</div>
       <div class="menu-sep"></div>
       <div class="menu-item" data-action="shutdown">⏻ Завершение работы...</div>
@@ -641,7 +744,7 @@ body {
       <div class="about-icon">🔐</div>
       <div class="about-text">
         <p><b>Password Generator 95</b></p>
-        <p>Версия 1.7</p>
+        <p>Версия 1.9</p>
         <p>Пароли создаются на этом устройстве и никуда не отправляются.</p>
         <div class="about-line"></div>
         <p>Физической памяти свободно: 640 КБ</p>
@@ -653,6 +756,38 @@ body {
     </div>
   </div>
 </div>
+
+<div class="helper" id="helper">
+  <div class="helper-balloon" id="helperBalloon">
+    <div class="helper-title" id="helperTitle">Ключик</div>
+    <div id="helperText"></div>
+    <div class="helper-actions">
+      <button id="helperMore">Ещё совет</button>
+      <button id="helperOk">OK</button>
+    </div>
+  </div>
+  <svg class="helper-char" id="helperChar" viewBox="0 0 64 64" role="button" aria-label="Помощник Ключик">
+    <!-- стержень и бородка ключа -->
+    <line x1="30" y1="30" x2="57" y2="57" stroke="#8a6d00" stroke-width="9" stroke-linecap="round"/>
+    <line x1="30" y1="30" x2="57" y2="57" stroke="#f4c430" stroke-width="5.5" stroke-linecap="round"/>
+    <line x1="45" y1="45" x2="51" y2="39" stroke="#8a6d00" stroke-width="6" stroke-linecap="round"/>
+    <line x1="45" y1="45" x2="51" y2="39" stroke="#f4c430" stroke-width="3" stroke-linecap="round"/>
+    <line x1="52" y1="52" x2="57" y2="47" stroke="#8a6d00" stroke-width="6" stroke-linecap="round"/>
+    <line x1="52" y1="52" x2="57" y2="47" stroke="#f4c430" stroke-width="3" stroke-linecap="round"/>
+    <!-- головка с лицом -->
+    <circle cx="22" cy="22" r="17" fill="#f4c430" stroke="#8a6d00" stroke-width="2.5"/>
+    <circle cx="22" cy="22" r="13" fill="#ffd95a"/>
+    <g class="helper-eyes">
+      <circle cx="16" cy="19" r="4.5" fill="#fff" stroke="#000" stroke-width="1"/>
+      <circle cx="28" cy="19" r="4.5" fill="#fff" stroke="#000" stroke-width="1"/>
+      <circle cx="17" cy="20" r="2.2" fill="#000"/>
+      <circle cx="29" cy="20" r="2.2" fill="#000"/>
+    </g>
+    <path d="M15 27 Q22 33 29 27" fill="none" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+  </svg>
+</div>
+
+<div class="screensaver" id="screensaver"><canvas></canvas></div>
 
 <div class="shutdown" id="shutdown">
   <div class="shutdown-text">Теперь питание компьютера можно отключить.</div>
@@ -809,6 +944,7 @@ const Sound = (function () {
     startup,
     _chime: chime,
     click: () => play([[1400, 0, 0.035, 'square', 0.04]]),
+    pop: () => play([[880, 0, 0.08, 'sine', 0.08], [1320, 0.05, 0.12, 'sine', 0.06]]),
     ding: () => play([[1318.5, 0, 0.5, 'sine', 0.14], [1975.5, 0, 0.35, 'sine', 0.06]]),
     error: () => play([[220, 0, 0.3, 'square', 0.05], [233.08, 0, 0.3, 'square', 0.05]]),
     shutdown: () => play([
@@ -857,6 +993,8 @@ function startBoot() {
     clearInterval(bootTicker);
     booting = false;
     boot.style.display = 'none';
+    Helper.greet();
+    Saver.arm();
   }, BOOT_MS);
   Sound.startup(boot, () => booting);
 }
@@ -870,6 +1008,7 @@ const copyBtn = document.getElementById('copyBtn');
 let hasPassword = false;
 
 slider.addEventListener('input', () => { lengthValue.textContent = slider.value; });
+slider.addEventListener('change', () => Helper.onLength(parseInt(slider.value)));
 
 function generatePassword() {
   const len = parseInt(slider.value);
@@ -898,6 +1037,7 @@ function generatePassword() {
     strengthField.textContent = 'Ошибка';
     hasPassword = false;
     Sound.error();
+    Helper.onError();
     return;
   }
   
@@ -918,6 +1058,7 @@ function generatePassword() {
   else if (bits >= 72) strength = 'Сильный';
   else if (bits >= 50) strength = 'Средний';
   strengthField.textContent = 'Надёжность: ' + strength + ' (' + bits + ' бит)';
+  Helper.onGenerate(bits, len, required.length);
 }
 
 // Криптостойкое случайное целое в диапазоне [0, max) без перекоса
@@ -947,6 +1088,7 @@ generateBtn.addEventListener('click', generatePassword);
 
 function flashCopy(ok) {
   if (ok) Sound.ding(); else Sound.error();
+  if (ok) Helper.onCopy();
   copyBtn.textContent = ok ? 'Скопировано!' : 'Не удалось';
   setTimeout(() => { copyBtn.textContent = 'Скопировать'; }, 1200);
 }
@@ -1005,6 +1147,9 @@ function updateSoundLabels() {
   document.querySelectorAll('[data-action="sound"]').forEach(el => {
     el.textContent = (Sound.isOn() ? '✓ ' : '✕ ') + 'Звук';
   });
+  document.querySelectorAll('[data-action="helper"]').forEach(el => {
+    el.textContent = (Helper.isOn() ? '✓ ' : '✕ ') + 'Помощник';
+  });
 }
 
 let exitTimer = null;
@@ -1012,6 +1157,7 @@ let exitTimer = null;
 function shutDown() {
   closeMenus();
   about.classList.remove('show');
+  Helper.hideBalloon();
   // пароль с экрана убираем
   result.textContent = 'Нажми "Сгенерировать"';
   strengthField.textContent = 'Готово';
@@ -1023,13 +1169,21 @@ function shutDown() {
   // Браузер разрешает это не везде: если не закроется, экран останется,
   // и приложение можно «включить» касанием.
   clearTimeout(exitTimer);
-  exitTimer = setTimeout(() => { try { window.close(); } catch (e) {} }, 3000);
+  exitTimer = setTimeout(() => {
+    try { window.close(); } catch (e) {}
+    // Если через полсекунды мы всё ещё здесь — закрыть не разрешили.
+    // Тогда «гасим монитор»: экран становится полностью чёрным.
+    exitTimer = setTimeout(() => {
+      if (shutdownScreen.classList.contains('show')) shutdownScreen.classList.add('off');
+    }, 500);
+  }, 3000);
 }
 
 const actions = {
   generate: () => { setMinimized(false); generatePassword(); },
   copy: () => copyBtn.click(),
   sound: () => { Sound.toggle(); updateSoundLabels(); },
+  helper: () => { Helper.toggle(); updateSoundLabels(); },
   about: () => about.classList.add('show'),
   restore: () => setMinimized(false),
   shutdown: shutDown
@@ -1055,7 +1209,7 @@ document.addEventListener('click', e => {
 
 // щелчок при нажатии на любые кнопки и пункты меню
 document.addEventListener('pointerdown', e => {
-  if (e.target.closest('button, .win95-btn-sm, .menu-item, [data-menu] > span, input')) Sound.click();
+  if (e.target.closest('button, .win95-btn-sm, .menu-item, [data-menu] > span, input, .helper-char')) Sound.click();
 });
 
 document.getElementById('minBtn').addEventListener('click', () => setMinimized(true));
@@ -1068,7 +1222,7 @@ document.getElementById('aboutClose').addEventListener('click', () => about.clas
 // «включение» после завершения работы
 shutdownScreen.addEventListener('click', () => {
   clearTimeout(exitTimer);
-  shutdownScreen.classList.remove('show');
+  shutdownScreen.classList.remove('show', 'off');
   startBoot();
 });
 
@@ -1078,6 +1232,214 @@ function tickClock() {
 }
 tickClock();
 setInterval(tickClock, 10000);
+
+// ---------- Помощник Ключик ----------
+const Helper = (function () {
+  const el = document.getElementById('helper');
+  const balloon = document.getElementById('helperBalloon');
+  const titleEl = document.getElementById('helperTitle');
+  const textEl = document.getElementById('helperText');
+  let on = true;
+  try { on = localStorage.getItem('pg95-helper') !== '0'; } catch (e) {}
+  let hideTimer = null;
+  let lastLevel = null;
+  let copiedOnce = false;
+  let lastTip = -1;
+
+  const TIPS = [
+    'Не используйте один пароль на нескольких сайтах: если утечёт один, откроются все.',
+    'Включите двухфакторную защиту — код из СМС или приложения. Даже украденный пароль тогда не поможет.',
+    'Для почты и банка берите 16 символов и больше. Почта — ключ ко всем остальным аккаунтам!',
+    'Хранить пароли удобнее всего в менеджере паролей, а не в заметках и не на бумажке под клавиатурой.',
+    'Не пересылайте пароли в мессенджерах и по почте — переписку могут прочитать.',
+    'Пароли, которые я создаю, никуда не отправляются: всё происходит прямо на вашем телефоне.',
+    'Если сайт сообщил об утечке данных — смените пароль там сразу, а заодно везде, где он повторялся.',
+    'Длина важнее хитрости: каждый лишний символ делает подбор в десятки раз дольше.',
+    'Ответы на «секретные вопросы» вроде девичьей фамилии матери легко узнать. Лучше впишите туда случайный пароль.'
+  ];
+
+  function hideBalloon() {
+    balloon.classList.remove('show');
+    clearTimeout(hideTimer);
+  }
+
+  function say(msg, title, ms) {
+    if (!on || booting) return;
+    titleEl.textContent = title || 'Ключик';
+    textEl.textContent = msg;
+    balloon.classList.add('show');
+    Sound.pop();
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(hideBalloon, ms || 10000);
+  }
+
+  function tip() {
+    let i;
+    do { i = randomInt(TIPS.length); } while (TIPS.length > 1 && i === lastTip);
+    lastTip = i;
+    say(TIPS[i], 'Совет дня');
+  }
+
+  function apply() {
+    el.classList.toggle('show', on);
+    if (!on) hideBalloon();
+  }
+
+  document.getElementById('helperChar').addEventListener('click', () => {
+    if (balloon.classList.contains('show')) hideBalloon(); else tip();
+  });
+  document.getElementById('helperMore').addEventListener('click', tip);
+  document.getElementById('helperOk').addEventListener('click', hideBalloon);
+  apply();
+
+  return {
+    isOn: () => on,
+    toggle() {
+      on = !on;
+      try { localStorage.setItem('pg95-helper', on ? '1' : '0'); } catch (e) {}
+      apply();
+      if (on) say('Я снова с вами! Коснитесь меня, если нужен совет.');
+    },
+    hideBalloon,
+    greet() {
+      say('Привет! Я Ключик, ваш помощник. Нажмите «Сгенерировать», а я подскажу, хорош ли пароль. Коснитесь меня — дам совет.', 'Ключик', 12000);
+    },
+    onGenerate(bits, len, types) {
+      let level, msg;
+      if (types === 1) {
+        level = 'one';
+        msg = 'Только один тип символов — такой пароль подбирают гораздо быстрее. Отметьте ещё буквы или цифры!';
+      } else if (bits < 50) {
+        level = 'weak';
+        msg = 'Хм, слабовато (' + bits + ' бит). Такой пароль можно подобрать. Сдвиньте ползунок хотя бы до 12.';
+      } else if (bits < 72) {
+        level = 'mid';
+        msg = 'Неплохо, но можно лучше: добавьте пару символов длины — подбирать придётся в тысячи раз дольше.';
+      } else if (bits < 100) {
+        level = 'good';
+        msg = 'Хороший пароль! Для самого важного — почты и банка — я бы сделал 16 символов и больше.';
+      } else {
+        level = 'great';
+        msg = 'Отличный пароль! Такой не подобрать перебором. Только не используйте его на нескольких сайтах сразу.';
+      }
+      // говорим, только когда оценка изменилась — чтобы не надоедать
+      if (level !== lastLevel) say(msg);
+      lastLevel = level;
+    },
+    onCopy() {
+      if (copiedOnce) return;
+      copiedOnce = true;
+      say('Скопировано! Пароль лежит в буфере обмена, пока вы не скопируете что-нибудь другое. Не забудьте вставить его куда нужно.');
+    },
+    onError() {
+      say('Ой! Отметьте хотя бы один тип символов — из пустоты пароль не собрать.', 'Ключик');
+    },
+    onLength(len) {
+      if (len <= 7) say('Пароль короче 8 символов подбирают за минуты. Может, подлиннее?');
+      else if (len >= 24) say('Длинный пароль — это правильно! Только проверьте, что сайт принимает столько символов.');
+    }
+  };
+})();
+
+// ---------- Экранная заставка «Звёздное небо» ----------
+const Saver = (function () {
+  const el = document.getElementById('screensaver');
+  const cv = el.querySelector('canvas');
+  const g = cv.getContext('2d');
+  const IDLE_MS = 30000;
+  const COUNT = 260;
+  let idleTimer = null;
+  let raf = null;
+  let last = 0;
+  let w = 0, h = 0;
+  let stars = [];
+
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    w = window.innerWidth;
+    h = window.innerHeight;
+    cv.width = Math.round(w * dpr);
+    cv.height = Math.round(h * dpr);
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  // звезда: координаты на «экране» глубины 1 и глубина z (чем меньше, тем ближе)
+  function newStar(far) {
+    return { x: Math.random() * 2 - 1, y: Math.random() * 2 - 1, z: far ? 1 : 0.05 + Math.random() * 0.95 };
+  }
+
+  function frame(t) {
+    const dt = last ? Math.min(50, t - last) : 16;
+    last = t;
+    g.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    g.fillRect(0, 0, w, h);
+    const cx = w / 2, cy = h / 2, k = Math.max(w, h) * 0.5;
+    for (const s of stars) {
+      const pz = s.z;
+      s.z -= dt * 0.00032;
+      const x = cx + (s.x / s.z) * k;
+      const y = cy + (s.y / s.z) * k;
+      if (s.z <= 0.02 || x < -10 || x > w + 10 || y < -10 || y > h + 10) {
+        Object.assign(s, newStar(true));
+        continue;
+      }
+      const px = cx + (s.x / pz) * k;
+      const py = cy + (s.y / pz) * k;
+      const b = 1 - s.z;
+      g.strokeStyle = 'rgba(255, 255, 255, ' + b.toFixed(3) + ')';
+      g.lineWidth = Math.max(0.6, b * 2.6);
+      g.beginPath();
+      g.moveTo(px, py);
+      g.lineTo(x, y);
+      g.stroke();
+    }
+    raf = requestAnimationFrame(frame);
+  }
+
+  function busy() {
+    return booting || shutdownScreen.classList.contains('show') || document.hidden;
+  }
+
+  function start() {
+    if (busy()) { arm(); return; }
+    closeMenus();
+    Helper.hideBalloon();
+    resize();
+    stars = Array.from({ length: COUNT }, () => newStar(false));
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, w, h);
+    last = 0;
+    el.classList.add('show');
+    raf = requestAnimationFrame(frame);
+  }
+
+  function stop() {
+    cancelAnimationFrame(raf);
+    raf = null;
+    el.classList.remove('show');
+  }
+
+  function arm() {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(start, IDLE_MS);
+  }
+
+  // любое действие сбрасывает таймер бездействия
+  ['pointerdown', 'keydown', 'input', 'wheel'].forEach(type => {
+    document.addEventListener(type, () => { if (!el.classList.contains('show')) arm(); }, { capture: true, passive: true });
+  });
+
+  // касание убирает заставку и не «проваливается» на кнопки под ней
+  el.addEventListener('click', e => {
+    e.stopPropagation();
+    stop();
+    arm();
+  });
+
+  window.addEventListener('resize', () => { if (el.classList.contains('show')) resize(); });
+
+  return { arm, start, stop };
+})();
 
 updateSoundLabels();
 startBoot();
