@@ -357,6 +357,256 @@ body {
 }
 .helper-actions button:active { border-color: #808080 #ffffff #ffffff #808080; }
 
+/* ---------- Значок на рабочем столе ---------- */
+.desktop { position: relative; }
+#mainWindow { position: relative; z-index: 1; }
+.desk-icon {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  left: max(10px, env(safe-area-inset-left));
+  width: 78px;
+  text-align: center;
+  color: #fff;
+  cursor: pointer;
+  z-index: 0;
+}
+.desk-icon svg { display: block; margin: 0 auto 3px; filter: drop-shadow(1px 1px 0 rgba(0,0,0,.4)); }
+.desk-icon span { padding: 1px 3px; }
+.desk-icon:active span { background: #000080; outline: 1px dotted #fff; }
+
+.win95-btn-group { flex-wrap: wrap; }
+.win95-button:disabled { color: #808080; text-shadow: 1px 1px 0 #fff; cursor: default; }
+input { user-select: text; -webkit-user-select: text; }
+
+/* ---------- Диалоги Windows ---------- */
+#dlg { z-index: 70; }
+.dlg-body { display: flex; gap: 12px; padding: 16px 14px 6px; align-items: flex-start; }
+.dlg-icon { font-size: 30px; line-height: 1; }
+.dlg-main { flex: 1; min-width: 0; line-height: 1.4; }
+.dlg-input {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 5px 6px;
+  font: inherit;
+  font-size: 14px;
+  background: #fff;
+  border: 2px solid;
+  border-color: #808080 #ffffff #ffffff #808080;
+  outline: none;
+}
+.dlg-btns { margin: 6px 0 12px; }
+
+/* ---------- Проводник «Мои пароли» ---------- */
+.modal .win95-window.explorer { max-width: 400px; width: 100%; }
+.ex-toolbar { display: flex; gap: 2px; padding: 3px; border-bottom: 1px solid #808080; box-shadow: 0 1px 0 #fff; flex-wrap: wrap; }
+.ex-tool {
+  background: #c0c0c0;
+  border: 1px solid transparent;
+  font: inherit;
+  padding: 5px 7px;
+  cursor: pointer;
+}
+.ex-tool:active { border-color: #808080 #ffffff #ffffff #808080; }
+.ex-addr {
+  margin: 4px 6px;
+  padding: 3px 6px;
+  background: #fff;
+  border: 2px solid;
+  border-color: #808080 #ffffff #ffffff #808080;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ex-list {
+  margin: 0 6px;
+  height: min(46vh, 300px);
+  overflow-y: auto;
+  background: #fff;
+  border: 2px solid;
+  border-color: #808080 #ffffff #ffffff #808080;
+}
+.ex-row {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  grid-template-rows: auto auto;
+  column-gap: 6px;
+  padding: 5px 6px;
+  cursor: default;
+}
+.ex-row .ex-ico { grid-row: 1 / 3; font-size: 16px; line-height: 30px; }
+.ex-row .ex-name { font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ex-row .ex-date { color: #808080; font-size: 11px; }
+.ex-row .ex-pwd { grid-column: 2 / 4; font-family: "Courier New", monospace; font-size: 13px; word-break: break-all; }
+.ex-row.sel { background: #000080; color: #fff; }
+.ex-row.sel .ex-date { color: #c0c0ff; }
+.ex-empty { padding: 20px 14px; color: #555; text-align: center; line-height: 1.5; }
+.ex-actions { display: flex; gap: 4px; padding: 8px 6px 6px; }
+.ex-actions .win95-button { min-width: 0; flex: 1; padding: 6px 4px; font-size: 11px; }
+
+/* ---------- Сейф: футуристичный экран входа ---------- */
+.vlock {
+  --vc: #00eaff;
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: radial-gradient(ellipse at 50% 38%, #0c2244 0%, #050b18 58%, #000 100%);
+  color: var(--vc);
+  font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: max(20px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom));
+  overflow: hidden;
+  transition: color .3s;
+}
+.vlock.show { display: flex; animation: vlIn .5s ease-out; }
+.vlock.err { --vc: #ff3b6b; }
+.vlock.ok { --vc: #3dff9a; }
+.vlock.leaving { animation: vlOut .55s ease-in forwards; }
+
+@keyframes vlIn { from { opacity: 0; transform: scale(1.06); filter: blur(8px); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes vlOut {
+  0%   { transform: none; filter: brightness(1); }
+  55%  { transform: scale(1, .01); filter: brightness(3); }
+  100% { transform: scale(0, .01); opacity: 0; }
+}
+
+/* неоновый «пол» и строки развёртки */
+.vlock::before {
+  content: "";
+  position: absolute;
+  left: -50%;
+  right: -50%;
+  bottom: -5%;
+  height: 50%;
+  background-image:
+    linear-gradient(rgba(0, 234, 255, .22) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 234, 255, .22) 1px, transparent 1px);
+  background-size: 44px 44px;
+  transform: perspective(280px) rotateX(62deg);
+  transform-origin: bottom;
+  animation: vlGrid 2.4s linear infinite;
+  -webkit-mask-image: linear-gradient(to top, #000 25%, transparent);
+  mask-image: linear-gradient(to top, #000 25%, transparent);
+  pointer-events: none;
+}
+.vlock::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, rgba(255,255,255,.035) 0 1px, transparent 1px 3px);
+  pointer-events: none;
+}
+@keyframes vlGrid { to { background-position: 0 44px, 0 0; } }
+
+.vl-top {
+  position: relative;
+  font-size: 10px;
+  letter-spacing: 5px;
+  opacity: .65;
+  margin-bottom: 14px;
+  white-space: nowrap;
+}
+.vl-shield {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  filter: drop-shadow(0 0 6px var(--vc));
+}
+.vl-shield .shackle { transition: transform .4s; transform-origin: 28px 21px; }
+.vlock.ok .vl-shield .shackle { transform: translateY(-3px) rotate(28deg); }
+.vl-head {
+  position: relative;
+  margin: 10px 0 4px;
+  font-size: 21px;
+  font-weight: 300;
+  letter-spacing: 1.5px;
+  text-align: center;
+  color: #e6fdff;
+  text-shadow: 0 0 10px var(--vc), 0 0 22px var(--vc);
+}
+.vl-status {
+  position: relative;
+  min-height: 34px;
+  max-width: 320px;
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: center;
+  color: var(--vc);
+  opacity: .9;
+}
+.vl-pad {
+  position: relative;
+  width: min(290px, 74vw, 46vh);
+  aspect-ratio: 1;
+  margin: 18px 0 14px;
+  touch-action: none;
+}
+.vl-pad::before,
+.vl-pad::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.vl-pad::before { inset: -10%; border: 1px dashed rgba(0, 234, 255, .3); animation: vlSpin 26s linear infinite; }
+.vl-pad::after  { inset: -4%; border: 2px solid; border-color: var(--vc) transparent; opacity: .45; animation: vlSpin 9s linear infinite reverse; }
+@keyframes vlSpin { to { transform: rotate(360deg); } }
+.vl-pad svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.vl-pad .ring { fill: none; stroke: var(--vc); stroke-width: .6; opacity: .45; transition: all .15s; }
+.vl-pad .core { fill: var(--vc); opacity: .8; }
+.vl-pad .on .ring { fill: var(--vc); fill-opacity: .18; opacity: 1; stroke-width: 1; }
+.vl-pad .on .core { opacity: 1; }
+.vl-pad .wire { fill: none; stroke: var(--vc); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 2px var(--vc)); }
+.vl-pad .rubber { stroke: var(--vc); stroke-width: 1; stroke-dasharray: 2 2; opacity: .6; }
+.vl-pad.busy { animation: vlPulse 1s ease-in-out infinite; pointer-events: none; }
+@keyframes vlPulse { 50% { opacity: .35; } }
+.vl-shake { animation: vlShake .4s; }
+@keyframes vlShake { 20%, 60% { transform: translateX(-9px); } 40%, 80% { transform: translateX(9px); } }
+
+.vl-textbox { position: relative; display: none; gap: 8px; margin: 26px 0 22px; }
+.vl-textbox.show { display: flex; }
+.vl-input {
+  width: min(240px, 62vw);
+  padding: 12px 14px;
+  font-size: 18px;
+  letter-spacing: 3px;
+  text-align: center;
+  color: #e6fdff;
+  background: rgba(0, 234, 255, .06);
+  border: 1px solid var(--vc);
+  border-radius: 8px;
+  outline: none;
+  box-shadow: inset 0 0 14px rgba(0, 234, 255, .18), 0 0 10px rgba(0, 234, 255, .15);
+  font-family: inherit;
+}
+.vl-btn {
+  min-width: 48px;
+  color: var(--vc);
+  background: transparent;
+  border: 1px solid var(--vc);
+  border-radius: 8px;
+  font-size: 20px;
+  cursor: pointer;
+}
+.vl-btn:active { background: rgba(0, 234, 255, .15); }
+.vl-links { position: relative; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.vl-link {
+  color: var(--vc);
+  background: rgba(0, 0, 0, .3);
+  border: 1px solid rgba(0, 234, 255, .35);
+  border-radius: 16px;
+  padding: 7px 14px;
+  font-size: 12px;
+  letter-spacing: .5px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.vl-link:active { background: rgba(0, 234, 255, .15); }
+.vl-link.danger { color: #ff3b6b; border-color: #ff3b6b; }
+
 /* ---------- Экран выключения ---------- */
 .shutdown {
   display: none;
@@ -643,6 +893,7 @@ body {
   <div class="boot-strip"></div>
 </div>
 <div class="desktop" id="desktop">
+<div class="desk-icon" id="deskVault" role="button" aria-label="Мои пароли"><svg viewBox="0 0 32 32" width="38" height="38"><path d="M2 7h10l3 3h15v18H2z" fill="#d8ac2c" stroke="#000" stroke-width="1"/><path d="M2 12h28v16H2z" fill="#ffdc6b" stroke="#000" stroke-width="1"/><path d="M13.5 17.5v-2a2.5 2.5 0 0 1 5 0v2" fill="none" stroke="#000" stroke-width="1.2"/><rect x="12" y="17.5" width="8" height="6.5" fill="#c0c0c0" stroke="#000" stroke-width="1"/><circle cx="16" cy="20.6" r="1" fill="#000"/></svg><span>Мои пароли</span></div>
 <div class="win95-window" id="mainWindow">
   <div class="win95-titlebar">
     <span>🔐 Password Generator</span>
@@ -657,6 +908,8 @@ body {
       <div class="menu-popup">
         <div class="menu-item" data-action="generate">Сгенерировать</div>
         <div class="menu-item" data-action="copy">Скопировать</div>
+        <div class="menu-item" data-action="savepwd">Сохранить в папку...</div>
+        <div class="menu-item" data-action="vault">Мои пароли</div>
         <div class="menu-sep"></div>
         <div class="menu-item" data-action="shutdown">Выход</div>
       </div>
@@ -707,11 +960,12 @@ body {
     <div class="win95-btn-group">
       <button class="win95-button" id="generateBtn">Сгенерировать</button>
       <button class="win95-button" id="copyBtn">Скопировать</button>
+      <button class="win95-button" id="saveBtn">В папку</button>
     </div>
   </div>
   <div class="win95-statusbar">
     <div class="win95-statusbar-field" id="strengthField">Готово</div>
-    <div class="win95-statusbar-field">v1.9</div>
+    <div class="win95-statusbar-field">v2.0</div>
   </div>
 </div>
 </div>
@@ -721,6 +975,7 @@ body {
     <button class="task-btn start-btn" id="startBtn">🔑 Пуск</button>
     <div class="menu-popup start-menu">
       <div class="menu-item" data-action="restore">🔐 Password Generator</div>
+      <div class="menu-item" data-action="vault">📁 Мои пароли</div>
       <div class="menu-item" data-action="sound">Звук</div>
       <div class="menu-item" data-action="helper">Помощник</div>
       <div class="menu-item" data-action="about">❓ О программе...</div>
@@ -744,7 +999,7 @@ body {
       <div class="about-icon">🔐</div>
       <div class="about-text">
         <p><b>Password Generator 95</b></p>
-        <p>Версия 1.9</p>
+        <p>Версия 2.0</p>
         <p>Пароли создаются на этом устройстве и никуда не отправляются.</p>
         <div class="about-line"></div>
         <p>Физической памяти свободно: 640 КБ</p>
@@ -785,6 +1040,84 @@ body {
     </g>
     <path d="M15 27 Q22 33 29 27" fill="none" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
   </svg>
+</div>
+
+<div class="modal" id="vaultWin">
+  <div class="win95-window explorer">
+    <div class="win95-titlebar">
+      <span>📁 Мои пароли</span>
+      <div class="win95-titlebar-buttons">
+        <span class="win95-btn-sm" id="vwClose" role="button" aria-label="Закрыть">✕</span>
+      </div>
+    </div>
+    <div class="ex-toolbar">
+      <button class="ex-tool" data-vw="lock">🔒 Запереть</button>
+      <button class="ex-tool" data-vw="export">💾 Экспорт</button>
+      <button class="ex-tool" data-vw="import">📂 Импорт</button>
+    </div>
+    <div class="ex-addr">Адрес: C:\Мои документы\Пароли</div>
+    <div class="ex-list" id="vwList"></div>
+    <div class="ex-actions">
+      <button class="win95-button" data-vw="show">Показать</button>
+      <button class="win95-button" data-vw="copy">Копировать</button>
+      <button class="win95-button" data-vw="rename">Имя...</button>
+      <button class="win95-button" data-vw="delete">Удалить</button>
+    </div>
+    <div class="win95-statusbar">
+      <div class="win95-statusbar-field" id="vwStatus">0 объектов</div>
+      <div class="win95-statusbar-field">🔓 Открыто</div>
+    </div>
+    <input type="file" id="vwFile" accept=".json,application/json" hidden>
+  </div>
+</div>
+
+<div class="modal" id="dlg">
+  <div class="win95-window">
+    <div class="win95-titlebar">
+      <span id="dlgTitle">Password Generator</span>
+      <div class="win95-titlebar-buttons">
+        <span class="win95-btn-sm" id="dlgX" role="button" aria-label="Закрыть">✕</span>
+      </div>
+    </div>
+    <div class="dlg-body">
+      <div class="dlg-icon" id="dlgIcon">ℹ️</div>
+      <div class="dlg-main">
+        <div id="dlgText"></div>
+        <input class="dlg-input" id="dlgInput" maxlength="40" autocomplete="off">
+      </div>
+    </div>
+    <div class="win95-btn-group dlg-btns">
+      <button class="win95-button" id="dlgOk">OK</button>
+      <button class="win95-button" id="dlgCancel">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<div class="vlock" id="vlock">
+  <div class="vl-top">◢ SECURE VAULT · PG-95 ◣</div>
+  <svg class="vl-shield" viewBox="0 0 48 48">
+    <path d="M24 4 L40 10 V22 C40 33 33 40 24 44 C15 40 8 33 8 22 V10 Z" fill="none" stroke="currentColor" stroke-width="1.6"/>
+    <rect x="17" y="21" width="14" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/>
+    <path class="shackle" d="M20 21v-3a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="1.6"/>
+  </svg>
+  <div class="vl-head" id="vlHead">Сейф</div>
+  <div class="vl-status" id="vlStatus"></div>
+  <div class="vl-pad" id="vlPad">
+    <svg viewBox="0 0 100 100">
+      <polyline class="wire" id="vlWire" points=""/>
+      <line class="rubber" id="vlRubber" x1="0" y1="0" x2="0" y2="0" visibility="hidden"/>
+      <g id="vlDots"></g>
+    </svg>
+  </div>
+  <div class="vl-textbox" id="vlTextBox">
+    <input class="vl-input" id="vlInput" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="64">
+    <button class="vl-btn" id="vlGo" aria-label="Готово">➜</button>
+  </div>
+  <div class="vl-links">
+    <button class="vl-link" id="vlSwitch">Ввести символами</button>
+    <button class="vl-link" id="vlForgot">Забыли?</button>
+    <button class="vl-link" id="vlCancel">Отмена</button>
+  </div>
 </div>
 
 <div class="screensaver" id="screensaver"><canvas></canvas></div>
@@ -944,6 +1277,9 @@ const Sound = (function () {
     startup,
     _chime: chime,
     click: () => play([[1400, 0, 0.035, 'square', 0.04]]),
+    blip: n => play([[700 + n * 70, 0, 0.07, 'sine', 0.06]]),
+    granted: () => play([[660, 0, 0.12, 'sine', 0.08], [990, 0.09, 0.14, 'sine', 0.08], [1320, 0.18, 0.3, 'sine', 0.08]]),
+    deny: () => play([[160, 0, 0.3, 'sawtooth', 0.05], [150, 0, 0.3, 'square', 0.03]]),
     pop: () => play([[880, 0, 0.08, 'sine', 0.08], [1320, 0.05, 0.12, 'sine', 0.06]]),
     ding: () => play([[1318.5, 0, 0.5, 'sine', 0.14], [1975.5, 0, 0.35, 'sine', 0.06]]),
     error: () => play([[220, 0, 0.3, 'square', 0.05], [233.08, 0, 0.3, 'square', 0.05]]),
@@ -1158,6 +1494,7 @@ function shutDown() {
   closeMenus();
   about.classList.remove('show');
   Helper.hideBalloon();
+  Vault.lock();
   // пароль с экрана убираем
   result.textContent = 'Нажми "Сгенерировать"';
   strengthField.textContent = 'Готово';
@@ -1184,6 +1521,8 @@ const actions = {
   copy: () => copyBtn.click(),
   sound: () => { Sound.toggle(); updateSoundLabels(); },
   helper: () => { Helper.toggle(); updateSoundLabels(); },
+  vault: () => Vault.open(),
+  savepwd: () => Vault.saveCurrent(),
   about: () => about.classList.add('show'),
   restore: () => setMinimized(false),
   shutdown: shutDown
@@ -1209,7 +1548,8 @@ document.addEventListener('click', e => {
 
 // щелчок при нажатии на любые кнопки и пункты меню
 document.addEventListener('pointerdown', e => {
-  if (e.target.closest('button, .win95-btn-sm, .menu-item, [data-menu] > span, input, .helper-char')) Sound.click();
+  if (e.target.closest('.vlock')) return;
+  if (e.target.closest('button, .win95-btn-sm, .menu-item, [data-menu] > span, input, .helper-char, .desk-icon, .ex-row')) Sound.click();
 });
 
 document.getElementById('minBtn').addEventListener('click', () => setMinimized(true));
@@ -1293,6 +1633,7 @@ const Helper = (function () {
   apply();
 
   return {
+    say,
     isOn: () => on,
     toggle() {
       on = !on;
@@ -1404,6 +1745,7 @@ const Saver = (function () {
     if (busy()) { arm(); return; }
     closeMenus();
     Helper.hideBalloon();
+    Vault.lock();
     resize();
     stars = Array.from({ length: COUNT }, () => newStar(false));
     g.fillStyle = '#000';
@@ -1439,6 +1781,661 @@ const Saver = (function () {
   window.addEventListener('resize', () => { if (el.classList.contains('show')) resize(); });
 
   return { arm, start, stop };
+})();
+
+// ---------- Диалоги в стиле Windows ----------
+const Dialog = (function () {
+  const el = document.getElementById('dlg');
+  const titleEl = document.getElementById('dlgTitle');
+  const textEl = document.getElementById('dlgText');
+  const iconEl = document.getElementById('dlgIcon');
+  const input = document.getElementById('dlgInput');
+  const okBtn = document.getElementById('dlgOk');
+  const cancelBtn = document.getElementById('dlgCancel');
+  let done = null;
+
+  function close(value) {
+    if (!done) return;
+    el.classList.remove('show');
+    const d = done;
+    done = null;
+    d(value);
+  }
+
+  // input: строка — показать поле ввода; cancel: null — без кнопки «Отмена»
+  function ask(o) {
+    close(null);
+    return new Promise(resolve => {
+      done = resolve;
+      titleEl.textContent = o.title || 'Password Generator';
+      textEl.textContent = o.text || '';
+      iconEl.textContent = o.icon || 'ℹ️';
+      const hasInput = typeof o.input === 'string';
+      input.style.display = hasInput ? '' : 'none';
+      input.value = hasInput ? o.input : '';
+      okBtn.textContent = o.ok || 'OK';
+      cancelBtn.textContent = o.cancel || 'Отмена';
+      cancelBtn.style.display = o.cancel === null ? 'none' : '';
+      el.classList.add('show');
+      if (hasInput) setTimeout(() => { input.focus(); input.select(); }, 60);
+    });
+  }
+
+  okBtn.addEventListener('click', () => close(input.style.display === 'none' ? true : input.value));
+  cancelBtn.addEventListener('click', () => close(null));
+  document.getElementById('dlgX').addEventListener('click', () => close(null));
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') okBtn.click(); });
+
+  return { ask, close, isOpen: () => !!done };
+})();
+
+function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text).then(() => true, () => legacyCopy(text));
+  }
+  return Promise.resolve(legacyCopy(text));
+}
+
+// ---------- Сейф «Мои пароли» ----------
+// Пароли хранятся только на этом устройстве и только в зашифрованном виде:
+// ключ AES-256-GCM получается из узора или пароля через PBKDF2 (600 000 итераций).
+const Vault = (function () {
+  const STORE = 'pg95-vault';
+  const FAILS = 'pg95-vault-fails';
+  const ITER = 600000;
+  const MIN_DOTS = 6;
+  const MIN_CHARS = 6;
+  const N = 4; // сетка 4×4
+  const enc = new TextEncoder();
+  const dec = new TextDecoder();
+
+  // --- состояние ---
+  let key = null;        // ключ шифрования, только в памяти
+  let meta = null;       // { mode, iter, salt }
+  let items = [];        // расшифрованные пароли, только в памяти
+  let selected = null;
+  const revealed = new Set();
+  let pending = null;    // кто ждёт открытия сейфа
+
+  // --- элементы ---
+  const $ = id => document.getElementById(id);
+  const lockEl = $('vlock'), headEl = $('vlHead'), statusEl = $('vlStatus');
+  const pad = $('vlPad'), wire = $('vlWire'), rubber = $('vlRubber'), dotsG = $('vlDots');
+  const textBox = $('vlTextBox'), textInput = $('vlInput');
+  const switchBtn = $('vlSwitch'), forgotBtn = $('vlForgot'), cancelBtn = $('vlCancel');
+  const win = $('vaultWin'), list = $('vwList'), vwStatus = $('vwStatus'), fileInput = $('vwFile');
+
+  // --- base64 ---
+  function b64(u8) {
+    let s = '';
+    for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
+    return btoa(s);
+  }
+  function unb64(s) {
+    const bin = atob(s);
+    const u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    return u8;
+  }
+
+  // --- хранилище ---
+  function load() {
+    try {
+      const r = JSON.parse(localStorage.getItem(STORE));
+      return valid(r) ? r : null;
+    } catch (e) { return null; }
+  }
+  function valid(r) {
+    return r && r.app === 'pg95-vault' && (r.mode === 'pattern' || r.mode === 'text') &&
+      typeof r.salt === 'string' && typeof r.iv === 'string' && typeof r.ct === 'string' && r.iter > 0;
+  }
+  function getFails() {
+    try { return JSON.parse(localStorage.getItem(FAILS)) || { n: 0, until: 0 }; } catch (e) { return { n: 0, until: 0 }; }
+  }
+  function setFails(f) {
+    try { localStorage.setItem(FAILS, JSON.stringify(f)); } catch (e) {}
+  }
+
+  // --- шифрование ---
+  async function deriveKey(secret, salt, iter) {
+    const base = await crypto.subtle.importKey('raw', enc.encode(secret), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt, iterations: iter, hash: 'SHA-256' },
+      base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  }
+
+  async function persist() {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = new Uint8Array(await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv }, key, enc.encode(JSON.stringify({ items }))));
+    const rec = { app: 'pg95-vault', v: 1, mode: meta.mode, iter: meta.iter, salt: meta.salt, iv: b64(iv), ct: b64(ct) };
+    try {
+      localStorage.setItem(STORE, JSON.stringify(rec));
+      return true;
+    } catch (e) {
+      Dialog.ask({ title: 'Ошибка', icon: '⛔', text: 'Не удалось сохранить папку: в памяти браузера нет места или доступ запрещён.', cancel: null });
+      return false;
+    }
+  }
+
+  // ================= Экран сейфа =================
+  let step = 'unlock';   // 'setup1' | 'setup2' | 'unlock'
+  let kind = 'pattern';  // 'pattern' | 'text'
+  let firstSecret = null;
+  let forgotArmed = false;
+  let lockoutTimer = null;
+
+  function setState(cls) {
+    lockEl.classList.remove('err', 'ok');
+    if (cls) lockEl.classList.add(cls);
+  }
+  function status(msg, cls) {
+    statusEl.textContent = msg;
+    setState(cls);
+  }
+
+  function render() {
+    const isPattern = kind === 'pattern';
+    pad.style.display = isPattern ? '' : 'none';
+    textBox.classList.toggle('show', !isPattern);
+    switchBtn.style.display = step === 'unlock' ? 'none' : '';
+    switchBtn.textContent = isPattern ? 'Ввести символами' : 'Нарисовать узор';
+    forgotBtn.style.display = step === 'unlock' ? '' : 'none';
+    forgotBtn.textContent = 'Забыли?';
+    forgotBtn.classList.remove('danger');
+    forgotArmed = false;
+    textInput.value = '';
+    clearPattern();
+
+    if (step === 'setup1') {
+      headEl.textContent = isPattern ? 'Создайте узор доступа' : 'Придумайте пароль сейфа';
+      status(isPattern ? 'Соедините пальцем не меньше ' + MIN_DOTS + ' точек' : 'Не меньше ' + MIN_CHARS + ' символов. Его нельзя будет восстановить!');
+    } else if (step === 'setup2') {
+      headEl.textContent = isPattern ? 'Повторите узор' : 'Повторите пароль';
+      status('Для подтверждения');
+    } else {
+      headEl.textContent = 'Доступ к сейфу';
+      status(isPattern ? 'Проведите узор доступа' : 'Введите пароль сейфа');
+      checkLockout();
+    }
+    if (!isPattern) setTimeout(() => textInput.focus(), 120);
+  }
+
+  function showLock() {
+    const rec = load();
+    if (rec) { step = 'unlock'; kind = rec.mode; }
+    else { step = 'setup1'; kind = 'pattern'; }
+    firstSecret = null;
+    lockEl.classList.remove('leaving');
+    lockEl.classList.add('show');
+    render();
+  }
+
+  function hideLock(animated, then) {
+    clearInterval(lockoutTimer);
+    if (!animated) {
+      lockEl.classList.remove('show', 'leaving', 'err', 'ok');
+      if (then) then();
+      return;
+    }
+    lockEl.classList.add('leaving');
+    setTimeout(() => {
+      lockEl.classList.remove('show', 'leaving', 'err', 'ok');
+      if (then) then();
+    }, 560);
+  }
+
+  function finish(ok) {
+    const p = pending;
+    pending = null;
+    if (p) p(ok);
+  }
+
+  function ensureUnlocked() {
+    if (key) return Promise.resolve(true);
+    if (pending) finish(false);
+    return new Promise(resolve => { pending = resolve; showLock(); });
+  }
+
+  function shake() {
+    const target = kind === 'pattern' ? pad : textBox;
+    target.classList.remove('vl-shake');
+    void target.offsetWidth;
+    target.classList.add('vl-shake');
+  }
+
+  function checkLockout() {
+    clearInterval(lockoutTimer);
+    const tick = () => {
+      const left = Math.ceil((getFails().until - Date.now()) / 1000);
+      const locked = left > 0;
+      pad.style.pointerEvents = locked ? 'none' : '';
+      textInput.disabled = locked;
+      if (locked) status('Слишком много попыток. Подождите ' + left + ' с', 'err');
+      else if (lockEl.classList.contains('err') && statusEl.textContent.indexOf('Подождите') === 0) {
+        status(kind === 'pattern' ? 'Проведите узор доступа' : 'Введите пароль сейфа');
+      }
+      if (!locked) clearInterval(lockoutTimer);
+    };
+    tick();
+    lockoutTimer = setInterval(tick, 1000);
+  }
+
+  function setBusy(on) {
+    pad.classList.toggle('busy', on);
+    textInput.disabled = on;
+    if (on) status('Расшифровка…');
+  }
+
+  async function submit(secret) {
+    if (step === 'setup1') {
+      const tooShort = kind === 'pattern' ? secret.split('-').length < MIN_DOTS : secret.length - 2 < MIN_CHARS;
+      if (tooShort) {
+        Sound.deny(); shake();
+        status(kind === 'pattern' ? 'Нужно соединить хотя бы ' + MIN_DOTS + ' точек' : 'Нужно хотя бы ' + MIN_CHARS + ' символов', 'err');
+        setTimeout(clearPattern, 700);
+        if (kind === 'text') textInput.value = '';
+        return;
+      }
+      firstSecret = secret;
+      Sound.granted();
+      step = 'setup2';
+      setTimeout(render, kind === 'pattern' ? 350 : 0);
+      if (kind === 'pattern') status('Принято', 'ok');
+      return;
+    }
+
+    if (step === 'setup2') {
+      if (secret !== firstSecret) {
+        Sound.deny(); shake();
+        status(kind === 'pattern' ? 'Узоры не совпали. Начнём заново' : 'Пароли не совпали. Начнём заново', 'err');
+        firstSecret = null;
+        setTimeout(() => { step = 'setup1'; render(); }, 1300);
+        return;
+      }
+      setBusy(true);
+      status('Создаю сейф…');
+      try {
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        key = await deriveKey(secret, salt, ITER);
+        meta = { mode: kind, iter: ITER, salt: b64(salt) };
+        items = [];
+        if (!(await persist())) { key = null; setBusy(false); render(); return; }
+        if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+      } catch (e) {
+        key = null;
+        setBusy(false);
+        status('Не удалось создать сейф: этот браузер не поддерживает шифрование.', 'err');
+        return;
+      }
+      setBusy(false);
+      firstSecret = null;
+      granted(true);
+      return;
+    }
+
+    // unlock
+    const rec = load();
+    if (!rec) { step = 'setup1'; kind = 'pattern'; render(); return; }
+    if (getFails().until > Date.now()) return;
+    setBusy(true);
+    try {
+      const k = await deriveKey(secret, unb64(rec.salt), rec.iter);
+      const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(rec.iv) }, k, unb64(rec.ct));
+      const data = JSON.parse(dec.decode(plain));
+      key = k;
+      meta = { mode: rec.mode, iter: rec.iter, salt: rec.salt };
+      items = Array.isArray(data.items) ? data.items : [];
+      setFails({ n: 0, until: 0 });
+      setBusy(false);
+      granted(false);
+    } catch (e) {
+      setBusy(false);
+      const f = getFails();
+      f.n++;
+      if (f.n >= 5) f.until = Date.now() + 30000 * (f.n - 4);
+      setFails(f);
+      Sound.deny(); shake();
+      const left = 5 - f.n;
+      status((kind === 'pattern' ? 'Неверный узор' : 'Неверный пароль') +
+        (left > 0 ? ' · осталось попыток: ' + left : ''), 'err');
+      setTimeout(() => {
+        clearPattern();
+        textInput.value = '';
+        if (f.n >= 5) checkLockout();
+        else if (lockEl.classList.contains('show')) status(kind === 'pattern' ? 'Проведите узор доступа' : 'Введите пароль сейфа');
+      }, 1100);
+    }
+  }
+
+  function granted(created) {
+    headEl.textContent = created ? 'Сейф создан' : 'Доступ разрешён';
+    status(created ? 'Шифрование AES-256 включено' : 'Добро пожаловать', 'ok');
+    Sound.granted();
+    setTimeout(() => hideLock(true, () => {
+      finish(true);
+      if (created) {
+        Helper.say('Сейф создан! Запомните ' + (meta.mode === 'pattern' ? 'узор' : 'пароль') +
+          ': без него пароли не откроет никто, даже я. И иногда делайте «Экспорт» — запасную копию на случай потери телефона.', 'Ключик', 16000);
+      }
+    }), 650);
+  }
+
+  // --- узор ---
+  const DOTS = [];
+  for (let i = 0; i < N * N; i++) {
+    const cx = 12.5 + (i % N) * 25, cy = 12.5 + Math.floor(i / N) * 25;
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.innerHTML = '<circle class="ring" cx="' + cx + '" cy="' + cy + '" r="6.5"/><circle class="core" cx="' + cx + '" cy="' + cy + '" r="2.2"/>';
+    dotsG.appendChild(g);
+    DOTS.push({ cx, cy, g });
+  }
+  let seq = [];
+  let drawing = false;
+
+  function clearPattern() {
+    seq = [];
+    drawing = false;
+    DOTS.forEach(d => d.g.classList.remove('on'));
+    wire.setAttribute('points', '');
+    rubber.setAttribute('visibility', 'hidden');
+    if (lockEl.classList.contains('err') && step !== 'unlock') setState(null);
+  }
+
+  function addDot(i) {
+    if (seq.includes(i)) return;
+    // точки, через которые палец «перепрыгнул» по прямой, тоже засчитываем
+    if (seq.length) {
+      const a = seq[seq.length - 1];
+      const ax = a % N, ay = Math.floor(a / N);
+      const dx = i % N - ax, dy = Math.floor(i / N) - ay;
+      const gcd = (x, y) => y ? gcd(y, x % y) : x;
+      const g = gcd(Math.abs(dx), Math.abs(dy));
+      for (let s = 1; s < g; s++) {
+        const m = (ax + dx * s / g) + (ay + dy * s / g) * N;
+        if (!seq.includes(m)) { seq.push(m); DOTS[m].g.classList.add('on'); }
+      }
+    }
+    seq.push(i);
+    DOTS[i].g.classList.add('on');
+    Sound.blip(seq.length);
+    wire.setAttribute('points', seq.map(k => DOTS[k].cx + ',' + DOTS[k].cy).join(' '));
+  }
+
+  function local(e) {
+    const r = pad.getBoundingClientRect();
+    return { x: (e.clientX - r.left) / r.width * 100, y: (e.clientY - r.top) / r.height * 100 };
+  }
+
+  function hit(p) {
+    for (let i = 0; i < DOTS.length; i++) {
+      const dx = DOTS[i].cx - p.x, dy = DOTS[i].cy - p.y;
+      if (dx * dx + dy * dy < 100) return i;
+    }
+    return -1;
+  }
+
+  function moveRubber(p) {
+    if (!seq.length) return;
+    const last = DOTS[seq[seq.length - 1]];
+    rubber.setAttribute('x1', last.cx); rubber.setAttribute('y1', last.cy);
+    rubber.setAttribute('x2', p.x); rubber.setAttribute('y2', p.y);
+    rubber.setAttribute('visibility', 'visible');
+  }
+
+  pad.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    clearPattern();
+    if (step === 'unlock' || step === 'setup2') setState(null);
+    drawing = true;
+    try { pad.setPointerCapture(e.pointerId); } catch (err) {}
+    const p = local(e);
+    const i = hit(p);
+    if (i >= 0) addDot(i);
+    moveRubber(p);
+  });
+  pad.addEventListener('pointermove', e => {
+    if (!drawing) return;
+    const p = local(e);
+    const i = hit(p);
+    if (i >= 0) addDot(i);
+    moveRubber(p);
+  });
+  const endDraw = () => {
+    if (!drawing) return;
+    drawing = false;
+    rubber.setAttribute('visibility', 'hidden');
+    if (seq.length === 0) return;
+    if (seq.length === 1) { clearPattern(); return; }
+    submit('p:' + seq.join('-'));
+  };
+  pad.addEventListener('pointerup', endDraw);
+  pad.addEventListener('pointercancel', endDraw);
+
+  // --- символы ---
+  function submitText() {
+    const v = textInput.value;
+    if (!v) return;
+    submit('t:' + v);
+  }
+  $('vlGo').addEventListener('click', submitText);
+  textInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitText(); });
+
+  switchBtn.addEventListener('click', () => {
+    kind = kind === 'pattern' ? 'text' : 'pattern';
+    step = 'setup1';
+    firstSecret = null;
+    render();
+  });
+
+  cancelBtn.addEventListener('click', () => hideLock(false, () => finish(false)));
+
+  forgotBtn.addEventListener('click', () => {
+    if (!forgotArmed) {
+      forgotArmed = true;
+      forgotBtn.textContent = 'Стереть сейф';
+      forgotBtn.classList.add('danger');
+      status('Открыть сейф без ' + (kind === 'pattern' ? 'узора' : 'пароля') + ' невозможно. Можно только стереть его вместе со всеми паролями.', 'err');
+      return;
+    }
+    try { localStorage.removeItem(STORE); localStorage.removeItem(FAILS); } catch (e) {}
+    Sound.deny();
+    step = 'setup1';
+    kind = 'pattern';
+    render();
+    status('Сейф стёрт. Создайте новый узор', 'err');
+  });
+
+  // ================= Проводник =================
+  function plural(n) {
+    const a = n % 10, b = n % 100;
+    if (a === 1 && b !== 11) return n + ' объект';
+    if (a >= 2 && a <= 4 && (b < 12 || b > 14)) return n + ' объекта';
+    return n + ' объектов';
+  }
+
+  function fmtDate(t) {
+    const d = new Date(t);
+    const p = x => String(x).padStart(2, '0');
+    return p(d.getDate()) + '.' + p(d.getMonth() + 1) + '.' + String(d.getFullYear()).slice(2);
+  }
+
+  function renderList() {
+    list.innerHTML = '';
+    if (!items.length) {
+      const e = document.createElement('div');
+      e.className = 'ex-empty';
+      e.textContent = 'Папка пуста. Создайте пароль и нажмите «В папку» в главном окне.';
+      list.appendChild(e);
+    }
+    items.forEach(it => {
+      const row = document.createElement('div');
+      row.className = 'ex-row' + (it.id === selected ? ' sel' : '');
+      row.dataset.id = it.id;
+      const ico = document.createElement('span'); ico.className = 'ex-ico'; ico.textContent = '🔑';
+      const name = document.createElement('span'); name.className = 'ex-name'; name.textContent = it.name;
+      const date = document.createElement('span'); date.className = 'ex-date'; date.textContent = fmtDate(it.t);
+      const pwd = document.createElement('span'); pwd.className = 'ex-pwd';
+      pwd.textContent = revealed.has(it.id) ? it.pwd : '••••••••••';
+      row.append(ico, name, date, pwd);
+      list.appendChild(row);
+    });
+    vwStatus.textContent = plural(items.length);
+    const has = items.some(i => i.id === selected);
+    win.querySelectorAll('.ex-actions .win95-button').forEach(b => { b.disabled = !has; });
+    win.querySelector('[data-vw="show"]').textContent = has && revealed.has(selected) ? 'Скрыть' : 'Показать';
+  }
+
+  function showExplorer() {
+    renderList();
+    win.classList.add('show');
+    const row = list.querySelector('.ex-row.sel');
+    if (row) row.scrollIntoView({ block: 'nearest' });
+  }
+
+  list.addEventListener('click', e => {
+    const row = e.target.closest('.ex-row');
+    if (!row) return;
+    selected = row.dataset.id;
+    renderList();
+  });
+
+  const current = () => items.find(i => i.id === selected);
+
+  async function vwAction(a) {
+    const it = current();
+    if (a === 'lock') { lock(); Sound.shutdown(); return; }
+    if (a === 'export') return exportVault();
+    if (a === 'import') { fileInput.value = ''; fileInput.click(); return; }
+    if (!it) return;
+    if (a === 'show') {
+      if (revealed.has(it.id)) revealed.delete(it.id); else revealed.add(it.id);
+      renderList();
+    } else if (a === 'copy') {
+      const ok = await copyText(it.pwd);
+      if (ok) Sound.ding(); else Sound.error();
+      vwStatus.textContent = ok ? 'Скопировано: ' + it.name : 'Не удалось скопировать';
+      setTimeout(() => { if (key) vwStatus.textContent = plural(items.length); }, 1800);
+    } else if (a === 'rename') {
+      const v = await Dialog.ask({ title: 'Переименование', icon: '✏️', text: 'Новое название:', input: it.name });
+      if (v === null || !key) return;
+      it.name = v.trim() || it.name;
+      await persist();
+      renderList();
+    } else if (a === 'delete') {
+      const ok = await Dialog.ask({ title: 'Удаление', icon: '⚠️', text: 'Удалить «' + it.name + '»? Восстановить пароль будет нельзя.', ok: 'Да', cancel: 'Нет' });
+      if (!ok || !key) return;
+      items = items.filter(i => i.id !== it.id);
+      revealed.delete(it.id);
+      selected = null;
+      await persist();
+      Sound.click();
+      renderList();
+    }
+  }
+
+  win.addEventListener('click', e => {
+    const b = e.target.closest('[data-vw]');
+    if (b && !b.disabled) vwAction(b.dataset.vw);
+  });
+  $('vwClose').addEventListener('click', () => { win.classList.remove('show'); revealed.clear(); });
+
+  // --- экспорт / импорт ---
+  function exportVault() {
+    let raw = null;
+    try { raw = localStorage.getItem(STORE); } catch (e) {}
+    if (!raw) return;
+    const blob = new Blob([raw], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'passgen-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    Dialog.ask({
+      title: 'Экспорт', icon: '💾', cancel: null,
+      text: 'Копия сохранена в «Загрузки». Она зашифрована: открыть её можно только вашим ' +
+        (meta && meta.mode === 'text' ? 'паролем' : 'узором') + '. Храните её в надёжном месте, например в облаке.'
+    });
+  }
+
+  fileInput.addEventListener('change', () => {
+    const f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      let rec = null;
+      try { rec = JSON.parse(reader.result); } catch (e) {}
+      if (!valid(rec)) {
+        Dialog.ask({ title: 'Импорт', icon: '⛔', text: 'Это не копия папки «Мои пароли».', cancel: null });
+        return;
+      }
+      const ok = await Dialog.ask({
+        title: 'Импорт', icon: '⚠️', ok: 'Заменить', cancel: 'Отмена',
+        text: 'Заменить содержимое папки копией из файла? Текущие пароли будут удалены. Открыть копию можно ' +
+          (rec.mode === 'text' ? 'паролем' : 'узором') + ', с которым она была сохранена.'
+      });
+      if (!ok) return;
+      try {
+        localStorage.setItem(STORE, JSON.stringify(rec));
+        localStorage.removeItem(FAILS);
+      } catch (e) {
+        Dialog.ask({ title: 'Ошибка', icon: '⛔', text: 'Не удалось сохранить копию.', cancel: null });
+        return;
+      }
+      lock();
+      open();
+    };
+    reader.readAsText(f);
+  });
+
+  // ================= Общее =================
+  function lock() {
+    key = null;
+    meta = null;
+    items = [];
+    selected = null;
+    revealed.clear();
+    win.classList.remove('show');
+    if (Dialog.isOpen()) Dialog.close(null);
+    if (lockEl.classList.contains('show')) hideLock(false, () => finish(false));
+  }
+
+  function open() {
+    ensureUnlocked().then(ok => { if (ok) showExplorer(); });
+  }
+
+  async function saveCurrent() {
+    if (!hasPassword) {
+      Sound.error();
+      Helper.say('Сначала создайте пароль кнопкой «Сгенерировать», а потом уже кладите его в папку.');
+      return;
+    }
+    const pwd = result.textContent;
+    if (!(await ensureUnlocked())) return;
+    if (items.some(i => i.pwd === pwd)) {
+      selected = items.find(i => i.pwd === pwd).id;
+      showExplorer();
+      Dialog.ask({ title: 'Мои пароли', icon: 'ℹ️', text: 'Этот пароль уже лежит в папке.', cancel: null });
+      return;
+    }
+    const name = await Dialog.ask({ title: 'Сохранить в папку', icon: '💾', text: 'Для чего этот пароль? Например: «Почта».', input: 'Пароль ' + (items.length + 1) });
+    if (name === null || !key) return;
+    const it = { id: Date.now().toString(36) + randomInt(1e6).toString(36), name: name.trim() || 'Без названия', pwd, t: Date.now() };
+    items.push(it);
+    if (!(await persist())) { items.pop(); return; }
+    selected = it.id;
+    Sound.ding();
+    showExplorer();
+  }
+
+  document.getElementById('saveBtn').addEventListener('click', saveCurrent);
+  document.getElementById('deskVault').addEventListener('click', open);
+  // свернули приложение — сейф запирается
+  document.addEventListener('visibilitychange', () => { if (document.hidden) lock(); });
+
+  return { open, lock, saveCurrent, isUnlocked: () => !!key };
 })();
 
 updateSoundLabels();
