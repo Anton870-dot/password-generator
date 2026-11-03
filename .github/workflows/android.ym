@@ -1,0 +1,478 @@
+# Сборка Android-приложения PassGen 95.
+# Этот файл сам создаёт Android-проект, собирает APK
+# и выкладывает его на странице Releases репозитория.
+name: Сборка Android-приложения
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'index.html'
+      - 'manifest.json'
+      - 'icon-192.png'
+      - 'icon-512.png'
+      - '.github/workflows/android.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+
+      - name: Создаём Android-проект
+        run: |
+          set -e
+          mkdir -p "$(dirname android/settings.gradle)"
+          cat > android/settings.gradle <<'PASSGEN_EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = 'PassGen95'
+          include ':app'
+          PASSGEN_EOF
+          mkdir -p "$(dirname android/build.gradle)"
+          cat > android/build.gradle <<'PASSGEN_EOF'
+          plugins {
+              id 'com.android.application' version '8.7.3' apply false
+          }
+          PASSGEN_EOF
+          mkdir -p "$(dirname android/gradle.properties)"
+          cat > android/gradle.properties <<'PASSGEN_EOF'
+          org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8
+          android.nonTransitiveRClass=true
+          PASSGEN_EOF
+          mkdir -p "$(dirname android/app/build.gradle)"
+          cat > android/app/build.gradle <<'PASSGEN_EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          // Номер сборки GitHub — чтобы каждая новая версия ставилась поверх старой
+          def buildNumber = (System.getenv('GITHUB_RUN_NUMBER') ?: '1').toInteger()
+
+          android {
+              namespace = 'io.github.anton870dot.passgen'
+              compileSdk = 35
+
+              defaultConfig {
+                  applicationId = 'io.github.anton870dot.passgen'
+                  minSdk = 24
+                  targetSdk = 34
+                  versionCode = buildNumber
+                  versionName = '2.0.' + buildNumber
+              }
+
+              signingConfigs {
+                  release {
+                      storeFile = file('../release.jks')
+                      storePassword = System.getenv('KEYSTORE_PASSWORD')
+                      keyAlias = 'passgen'
+                      keyPassword = System.getenv('KEYSTORE_PASSWORD')
+                  }
+              }
+
+              buildTypes {
+                  release {
+                      minifyEnabled = false
+                      signingConfig = signingConfigs.release
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+
+              lint {
+                  abortOnError = false
+                  checkReleaseBuilds = false
+              }
+          }
+          PASSGEN_EOF
+          mkdir -p "$(dirname android/app/src/main/AndroidManifest.xml)"
+          cat > android/app/src/main/AndroidManifest.xml <<'PASSGEN_EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <!-- Разрешения на интернет нет: приложение физически не может ничего отправить в сеть -->
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <application
+                  android:label="PassGen 95"
+                  android:icon="@mipmap/ic_launcher"
+                  android:roundIcon="@mipmap/ic_launcher"
+                  android:allowBackup="true"
+                  android:hardwareAccelerated="true"
+                  android:theme="@style/AppTheme">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:launchMode="singleTask"
+                      android:screenOrientation="portrait"
+                      android:windowSoftInputMode="adjustResize"
+                      android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density|fontScale">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          PASSGEN_EOF
+          mkdir -p "$(dirname android/app/src/main/res/values/colors.xml)"
+          cat > android/app/src/main/res/values/colors.xml <<'PASSGEN_EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="teal">#008080</color>
+              <color name="navy">#000080</color>
+          </resources>
+          PASSGEN_EOF
+          mkdir -p "$(dirname android/app/src/main/res/values/styles.xml)"
+          cat > android/app/src/main/res/values/styles.xml <<'PASSGEN_EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+                  <item name="android:windowBackground">@color/teal</item>
+                  <item name="android:statusBarColor">@color/navy</item>
+                  <item name="android:navigationBarColor">#FF000000</item>
+              </style>
+          </resources>
+          PASSGEN_EOF
+          mkdir -p "$(dirname android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml)"
+          cat > android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'PASSGEN_EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/teal" />
+              <foreground android:drawable="@mipmap/ic_launcher_fg" />
+          </adaptive-icon>
+          PASSGEN_EOF
+          mkdir -p "$(dirname android/app/src/main/java/io/github/anton870dot/passgen/MainActivity.java)"
+          cat > android/app/src/main/java/io/github/anton870dot/passgen/MainActivity.java <<'PASSGEN_EOF'
+          package io.github.anton870dot.passgen;
+
+          import android.app.Activity;
+          import android.content.ClipData;
+          import android.content.ClipDescription;
+          import android.content.ClipboardManager;
+          import android.content.ContentValues;
+          import android.content.Intent;
+          import android.graphics.Color;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.os.Environment;
+          import android.os.PersistableBundle;
+          import android.provider.MediaStore;
+          import android.view.View;
+          import android.webkit.JavascriptInterface;
+          import android.webkit.ValueCallback;
+          import android.webkit.WebChromeClient;
+          import android.webkit.WebResourceRequest;
+          import android.webkit.WebResourceResponse;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+
+          import java.io.ByteArrayInputStream;
+          import java.io.File;
+          import java.io.FileOutputStream;
+          import java.io.IOException;
+          import java.io.InputStream;
+          import java.io.OutputStream;
+          import java.nio.charset.StandardCharsets;
+          import java.util.HashMap;
+          import java.util.Map;
+
+          /**
+           * Оболочка для веб-приложения PassGen 95.
+           * Страница лежит внутри APK (assets/www) и открывается по адресу
+           * https://appassets.androidplatform.net/ — так браузерное шифрование
+           * и хранилище работают так же, как на сайте, но без интернета.
+           */
+          public class MainActivity extends Activity {
+
+              private static final String HOST = "appassets.androidplatform.net";
+              private static final int FILE_REQUEST = 1;
+
+              private WebView web;
+              private ValueCallback<Uri[]> fileCallback;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  web = new WebView(this);
+                  web.setBackgroundColor(Color.rgb(0, 128, 128));
+                  web.setOverScrollMode(View.OVER_SCROLL_NEVER);
+                  setContentView(web);
+
+                  WebSettings s = web.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);
+                  s.setDatabaseEnabled(true);
+                  s.setMediaPlaybackRequiresUserGesture(false); // мелодия запуска играет сразу
+                  s.setAllowFileAccess(false);
+                  s.setSupportZoom(false);
+                  s.setBuiltInZoomControls(false);
+                  s.setDisplayZoomControls(false);
+                  s.setTextZoom(100); // крупный шрифт в системе не ломает окно
+
+                  web.addJavascriptInterface(new Bridge(), "AndroidApp");
+
+                  web.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                          return serve(request.getUrl());
+                      }
+
+                      @Override
+                      public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                          Uri uri = request.getUrl();
+                          if (HOST.equals(uri.getHost())) return false;
+                          try {
+                              startActivity(new Intent(Intent.ACTION_VIEW, uri));
+                          } catch (Exception ignored) {
+                          }
+                          return true;
+                      }
+                  });
+
+                  web.setWebChromeClient(new WebChromeClient() {
+                      // выбор файла для «Импорта»
+                      @Override
+                      public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
+                                                       FileChooserParams params) {
+                          if (fileCallback != null) fileCallback.onReceiveValue(null);
+                          fileCallback = callback;
+                          Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                          intent.addCategory(Intent.CATEGORY_OPENABLE);
+                          intent.setType("*/*");
+                          try {
+                              startActivityForResult(Intent.createChooser(intent, "Выберите копию папки"), FILE_REQUEST);
+                          } catch (Exception e) {
+                              fileCallback = null;
+                              callback.onReceiveValue(null);
+                              return false;
+                          }
+                          return true;
+                      }
+                  });
+
+                  web.loadUrl("https://" + HOST + "/index.html");
+              }
+
+              // ---------- раздача файлов приложения из assets/www ----------
+
+              private WebResourceResponse serve(Uri uri) {
+                  if (!HOST.equals(uri.getHost())) return null;
+                  String path = uri.getPath();
+                  if (path == null || path.equals("/") || path.isEmpty()) path = "/index.html";
+                  if (path.contains("..")) return notFound();
+                  try {
+                      InputStream in = getAssets().open("www" + path);
+                      WebResourceResponse r = new WebResourceResponse(mime(path), "UTF-8", in);
+                      Map<String, String> headers = new HashMap<>();
+                      headers.put("Cache-Control", "no-cache");
+                      r.setResponseHeaders(headers);
+                      return r;
+                  } catch (IOException e) {
+                      return notFound();
+                  }
+              }
+
+              private static WebResourceResponse notFound() {
+                  return new WebResourceResponse("text/plain", "UTF-8", 404, "Not Found",
+                          new HashMap<>(), new ByteArrayInputStream(new byte[0]));
+              }
+
+              private static String mime(String path) {
+                  String p = path.toLowerCase();
+                  if (p.endsWith(".html")) return "text/html";
+                  if (p.endsWith(".js")) return "application/javascript";
+                  if (p.endsWith(".json")) return "application/json";
+                  if (p.endsWith(".css")) return "text/css";
+                  if (p.endsWith(".png")) return "image/png";
+                  if (p.endsWith(".svg")) return "image/svg+xml";
+                  return "application/octet-stream";
+              }
+
+              // ---------- системные кнопки и результаты ----------
+
+              @Override
+              @SuppressWarnings("deprecation")
+              public void onBackPressed() {
+                  // Кнопку «Назад» обрабатывает страница: закрывает окна и меню,
+                  // а на рабочем столе запускает «Завершение работы».
+                  web.evaluateJavascript(
+                          "(window.onAndroidBack ? String(window.onAndroidBack()) : 'false')",
+                          value -> {
+                              if (!"\"true\"".equals(value)) finishAndRemoveTask();
+                          });
+              }
+
+              @Override
+              protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+                  if (requestCode == FILE_REQUEST && fileCallback != null) {
+                      Uri[] result = null;
+                      if (resultCode == RESULT_OK && data != null && data.getData() != null) {
+                          result = new Uri[]{data.getData()};
+                      }
+                      fileCallback.onReceiveValue(result);
+                      fileCallback = null;
+                      return;
+                  }
+                  super.onActivityResult(requestCode, resultCode, data);
+              }
+
+              @Override
+              protected void onDestroy() {
+                  if (web != null) {
+                      web.destroy();
+                      web = null;
+                  }
+                  super.onDestroy();
+              }
+
+              // ---------- функции, доступные странице как window.AndroidApp ----------
+
+              public class Bridge {
+
+                  /** «Завершение работы»: закрыть приложение полностью. */
+                  @JavascriptInterface
+                  public void exit() {
+                      runOnUiThread(MainActivity.this::finishAndRemoveTask);
+                  }
+
+                  /** Копирование; на Android 13+ пароль скрыт в подсказке буфера обмена. */
+                  @JavascriptInterface
+                  public boolean copy(String text) {
+                      try {
+                          ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                          ClipData clip = ClipData.newPlainText("password", text);
+                          if (Build.VERSION.SDK_INT >= 33) {
+                              PersistableBundle extras = new PersistableBundle();
+                              extras.putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true);
+                              clip.getDescription().setExtras(extras);
+                          }
+                          cm.setPrimaryClip(clip);
+                          return true;
+                      } catch (Exception e) {
+                          return false;
+                      }
+                  }
+
+                  /** «Экспорт»: сохраняет файл в «Загрузки/PassGen95». Возвращает путь или пустую строку. */
+                  @JavascriptInterface
+                  public String saveFile(String name, String text) {
+                      try {
+                          byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
+                          if (Build.VERSION.SDK_INT >= 29) {
+                              ContentValues cv = new ContentValues();
+                              cv.put(MediaStore.Downloads.DISPLAY_NAME, name);
+                              cv.put(MediaStore.Downloads.MIME_TYPE, "application/json");
+                              cv.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/PassGen95");
+                              Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+                              if (uri == null) return "";
+                              try (OutputStream os = getContentResolver().openOutputStream(uri)) {
+                                  if (os == null) return "";
+                                  os.write(bytes);
+                              }
+                              return "Загрузки/PassGen95/" + name;
+                          } else {
+                              File dir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+                              if (dir == null) return "";
+                              //noinspection ResultOfMethodCallIgnored
+                              dir.mkdirs();
+                              File f = new File(dir, name);
+                              try (FileOutputStream os = new FileOutputStream(f)) {
+                                  os.write(bytes);
+                              }
+                              return f.getAbsolutePath();
+                          }
+                      } catch (Exception e) {
+                          return "";
+                      }
+                  }
+              }
+          }
+          PASSGEN_EOF
+
+      - name: Иконки приложения
+        run: |
+          python3 -m pip install --quiet --break-system-packages pillow || python3 -m pip install --quiet pillow
+          python3 - <<'PASSGEN_EOF'
+          import os
+          from PIL import Image
+          src = Image.open('icon-512.png').convert('RGBA')
+          base = 'android/app/src/main/res'
+          for d, s in {'mdpi': 48, 'hdpi': 72, 'xhdpi': 96, 'xxhdpi': 144, 'xxxhdpi': 192}.items():
+              os.makedirs(f'{base}/mipmap-{d}', exist_ok=True)
+              src.resize((s, s), Image.LANCZOS).save(f'{base}/mipmap-{d}/ic_launcher.png')
+          for d, s in {'mdpi': 108, 'hdpi': 162, 'xhdpi': 216, 'xxhdpi': 324, 'xxxhdpi': 432}.items():
+              fg = Image.new('RGBA', (s, s), (0, 0, 0, 0))
+              inner = round(s * 60 / 108)
+              icon = src.resize((inner, inner), Image.LANCZOS)
+              fg.paste(icon, ((s - inner) // 2, (s - inner) // 2), icon)
+              fg.save(f'{base}/mipmap-{d}/ic_launcher_fg.png')
+          PASSGEN_EOF
+
+      - name: Копируем веб-приложение внутрь APK
+        run: |
+          mkdir -p android/app/src/main/assets/www
+          cp index.html manifest.json icon-192.png icon-512.png android/app/src/main/assets/www/
+
+      - name: Ключ подписи
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "::error::Не найдены секреты ANDROID_KEYSTORE_B64 и ANDROID_KEYSTORE_PASSWORD (Settings → Secrets and variables → Actions)"
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | tr -d ' \r\n' | base64 -d > android/release.jks
+
+      - name: Сборка APK
+        working-directory: android
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: gradle --no-daemon assembleRelease
+
+      - name: Публикация на странице Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APK="PassGen95-v${{ github.run_number }}.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "$APK"
+          gh release create "apk-${{ github.run_number }}" "$APK" \
+            --title "PassGen 95 — сборка ${{ github.run_number }}" \
+            --notes "Скачайте файл $APK на телефон и откройте его, чтобы установить или обновить приложение." \
+            --latest
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PassGen95-apk
+          path: PassGen95-*.apk
