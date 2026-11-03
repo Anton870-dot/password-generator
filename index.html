@@ -965,7 +965,7 @@ input { user-select: text; -webkit-user-select: text; }
   </div>
   <div class="win95-statusbar">
     <div class="win95-statusbar-field" id="strengthField">Готово</div>
-    <div class="win95-statusbar-field">v2.0</div>
+    <div class="win95-statusbar-field">v2.1</div>
   </div>
 </div>
 </div>
@@ -999,7 +999,7 @@ input { user-select: text; -webkit-user-select: text; }
       <div class="about-icon">🔐</div>
       <div class="about-text">
         <p><b>Password Generator 95</b></p>
-        <p>Версия 2.0</p>
+        <p>Версия 2.1</p>
         <p>Пароли создаются на этом устройстве и никуда не отправляются.</p>
         <div class="about-line"></div>
         <p>Физической памяти свободно: 640 КБ</p>
@@ -1445,14 +1445,7 @@ function legacyCopy(text) {
 
 copyBtn.addEventListener('click', () => {
   if (!hasPassword) return;
-  const text = result.textContent;
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text)
-      .then(() => flashCopy(true))
-      .catch(() => flashCopy(legacyCopy(text)));
-  } else {
-    flashCopy(legacyCopy(text));
-  }
+  copyText(result.textContent).then(flashCopy);
 });
 
 // ---------- Окно, меню, панель задач ----------
@@ -1507,6 +1500,7 @@ function shutDown() {
   // и приложение можно «включить» касанием.
   clearTimeout(exitTimer);
   exitTimer = setTimeout(() => {
+    if (window.AndroidApp && AndroidApp.exit) { AndroidApp.exit(); return; }
     try { window.close(); } catch (e) {}
     // Если через полсекунды мы всё ещё здесь — закрыть не разрешили.
     // Тогда «гасим монитор»: экран становится полностью чёрным.
@@ -1830,6 +1824,10 @@ const Dialog = (function () {
 })();
 
 function copyText(text) {
+  // внутри Android-приложения копируем средствами системы
+  if (window.AndroidApp && AndroidApp.copy) {
+    try { return Promise.resolve(!!AndroidApp.copy(text)); } catch (e) {}
+  }
   if (navigator.clipboard && navigator.clipboard.writeText) {
     return navigator.clipboard.writeText(text).then(() => true, () => legacyCopy(text));
   }
@@ -2345,6 +2343,18 @@ const Vault = (function () {
     let raw = null;
     try { raw = localStorage.getItem(STORE); } catch (e) {}
     if (!raw) return;
+    const fileName = 'passgen-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+    const what = (meta && meta.mode === 'text' ? 'паролем' : 'узором');
+    if (window.AndroidApp && AndroidApp.saveFile) {
+      let where = '';
+      try { where = AndroidApp.saveFile(fileName, raw); } catch (e) {}
+      Dialog.ask(where ? {
+        title: 'Экспорт', icon: '💾', cancel: null,
+        text: 'Копия сохранена: ' + where + '. Она зашифрована: открыть её можно только вашим ' + what +
+          '. Перешлите её себе в облако или на компьютер — на случай потери телефона.'
+      } : { title: 'Экспорт', icon: '⛔', cancel: null, text: 'Не удалось сохранить копию.' });
+      return;
+    }
     const blob = new Blob([raw], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -2441,7 +2451,25 @@ const Vault = (function () {
 updateSoundLabels();
 startBoot();
 
-if ('serviceWorker' in navigator) {
+// ---------- Кнопка «Назад» в Android-приложении ----------
+// true — нажатие обработано здесь; false — приложение закроется само.
+window.onAndroidBack = function () {
+  const saver = document.getElementById('screensaver');
+  if (saver.classList.contains('show')) { Saver.stop(); Saver.arm(); return true; }
+  if (shutdownScreen.classList.contains('show')) return false;
+  if (booting) return true;
+  if (Dialog.isOpen()) { Dialog.close(null); return true; }
+  if (document.getElementById('vlock').classList.contains('show')) { document.getElementById('vlCancel').click(); return true; }
+  if (document.getElementById('vaultWin').classList.contains('show')) { document.getElementById('vwClose').click(); return true; }
+  if (about.classList.contains('show')) { about.classList.remove('show'); return true; }
+  if (document.querySelector('[data-menu].open')) { closeMenus(); return true; }
+  if (document.getElementById('helperBalloon').classList.contains('show')) { Helper.hideBalloon(); return true; }
+  shutDown();
+  return true;
+};
+
+// на сайте — работа без интернета; в Android-приложении не нужна
+if ('serviceWorker' in navigator && !window.AndroidApp) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 </script>
