@@ -965,7 +965,7 @@ input { user-select: text; -webkit-user-select: text; }
   </div>
   <div class="win95-statusbar">
     <div class="win95-statusbar-field" id="strengthField">Готово</div>
-    <div class="win95-statusbar-field">v2.1</div>
+    <div class="win95-statusbar-field">v3.0</div>
   </div>
 </div>
 </div>
@@ -999,7 +999,7 @@ input { user-select: text; -webkit-user-select: text; }
       <div class="about-icon">🔐</div>
       <div class="about-text">
         <p><b>Password Generator 95</b></p>
-        <p>Версия 2.1</p>
+        <p>Версия 3.0</p>
         <p>Пароли создаются на этом устройстве и никуда не отправляются.</p>
         <div class="about-line"></div>
         <p>Физической памяти свободно: 640 КБ</p>
@@ -1054,6 +1054,8 @@ input { user-select: text; -webkit-user-select: text; }
       <button class="ex-tool" data-vw="lock">🔒 Запереть</button>
       <button class="ex-tool" data-vw="export">💾 Экспорт</button>
       <button class="ex-tool" data-vw="import">📂 Импорт</button>
+      <button class="ex-tool" data-vw="rekey" id="vwRekey">🔑 Сменить узор</button>
+      <button class="ex-tool" data-vw="bio" id="vwBio" style="display:none">👆 Отпечаток</button>
     </div>
     <div class="ex-addr">Адрес: C:\Мои документы\Пароли</div>
     <div class="ex-list" id="vwList"></div>
@@ -1115,6 +1117,7 @@ input { user-select: text; -webkit-user-select: text; }
   </div>
   <div class="vl-links">
     <button class="vl-link" id="vlSwitch">Ввести символами</button>
+    <button class="vl-link" id="vlBio" style="display:none">👆 Отпечаток</button>
     <button class="vl-link" id="vlForgot">Забыли?</button>
     <button class="vl-link" id="vlCancel">Отмена</button>
   </div>
@@ -1664,7 +1667,9 @@ const Helper = (function () {
     onCopy() {
       if (copiedOnce) return;
       copiedOnce = true;
-      say('Скопировано! Пароль лежит в буфере обмена, пока вы не скопируете что-нибудь другое. Не забудьте вставить его куда нужно.');
+      say(window.AndroidApp
+        ? 'Скопировано! Через минуту я сам очищу буфер обмена, чтобы пароль там не залёживался.'
+        : 'Скопировано! Пароль лежит в буфере обмена, пока вы не скопируете что-нибудь другое. Не забудьте вставить его куда нужно.');
     },
     onError() {
       say('Ой! Отметьте хотя бы один тип символов — из пустоты пароль не собрать.', 'Ключик');
@@ -1834,36 +1839,157 @@ function copyText(text) {
   return Promise.resolve(legacyCopy(text));
 }
 
+// ---------- scrypt (RFC 7914): медленная функция, требующая много памяти ----------
+// Каждая попытка угадать узор стоит 64 МБ памяти и заметного времени,
+// поэтому перебор даже на мощных видеокартах становится очень дорогим.
+async function pbkdf2Bytes(pass, salt, len) {
+  const k = await crypto.subtle.importKey('raw', pass, 'PBKDF2', false, ['deriveBits']);
+  return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: 1, hash: 'SHA-256' }, k, len * 8));
+}
+function salsa8(B, x) {
+  for (let i = 0; i < 16; i++) x[i] = B[i];
+  for (let i = 0; i < 8; i += 2) {
+    let u;
+    u = x[0] + x[12]; x[4] ^= (u << 7) | (u >>> 25);
+    u = x[4] + x[0]; x[8] ^= (u << 9) | (u >>> 23);
+    u = x[8] + x[4]; x[12] ^= (u << 13) | (u >>> 19);
+    u = x[12] + x[8]; x[0] ^= (u << 18) | (u >>> 14);
+    u = x[5] + x[1]; x[9] ^= (u << 7) | (u >>> 25);
+    u = x[9] + x[5]; x[13] ^= (u << 9) | (u >>> 23);
+    u = x[13] + x[9]; x[1] ^= (u << 13) | (u >>> 19);
+    u = x[1] + x[13]; x[5] ^= (u << 18) | (u >>> 14);
+    u = x[10] + x[6]; x[14] ^= (u << 7) | (u >>> 25);
+    u = x[14] + x[10]; x[2] ^= (u << 9) | (u >>> 23);
+    u = x[2] + x[14]; x[6] ^= (u << 13) | (u >>> 19);
+    u = x[6] + x[2]; x[10] ^= (u << 18) | (u >>> 14);
+    u = x[15] + x[11]; x[3] ^= (u << 7) | (u >>> 25);
+    u = x[3] + x[15]; x[7] ^= (u << 9) | (u >>> 23);
+    u = x[7] + x[3]; x[11] ^= (u << 13) | (u >>> 19);
+    u = x[11] + x[7]; x[15] ^= (u << 18) | (u >>> 14);
+    u = x[0] + x[3]; x[1] ^= (u << 7) | (u >>> 25);
+    u = x[1] + x[0]; x[2] ^= (u << 9) | (u >>> 23);
+    u = x[2] + x[1]; x[3] ^= (u << 13) | (u >>> 19);
+    u = x[3] + x[2]; x[0] ^= (u << 18) | (u >>> 14);
+    u = x[5] + x[4]; x[6] ^= (u << 7) | (u >>> 25);
+    u = x[6] + x[5]; x[7] ^= (u << 9) | (u >>> 23);
+    u = x[7] + x[6]; x[4] ^= (u << 13) | (u >>> 19);
+    u = x[4] + x[7]; x[5] ^= (u << 18) | (u >>> 14);
+    u = x[10] + x[9]; x[11] ^= (u << 7) | (u >>> 25);
+    u = x[11] + x[10]; x[8] ^= (u << 9) | (u >>> 23);
+    u = x[8] + x[11]; x[9] ^= (u << 13) | (u >>> 19);
+    u = x[9] + x[8]; x[10] ^= (u << 18) | (u >>> 14);
+    u = x[15] + x[14]; x[12] ^= (u << 7) | (u >>> 25);
+    u = x[12] + x[15]; x[13] ^= (u << 9) | (u >>> 23);
+    u = x[13] + x[12]; x[14] ^= (u << 13) | (u >>> 19);
+    u = x[14] + x[13]; x[15] ^= (u << 18) | (u >>> 14);
+  }
+  for (let i = 0; i < 16; i++) B[i] = (B[i] + x[i]) | 0;
+}
+function blockMix(X, Y, r, T, x) {
+  T.set(X.subarray((2 * r - 1) * 16, 2 * r * 16));
+  for (let i = 0; i < 2 * r; i++) {
+    for (let k = 0; k < 16; k++) T[k] ^= X[i * 16 + k];
+    salsa8(T, x);
+    Y.set(T, ((i & 1) * r + (i >> 1)) * 16);
+  }
+  X.set(Y);
+}
+async function scrypt(pass, salt, N, r, p, dkLen) {
+  const B = await pbkdf2Bytes(pass, salt, p * 128 * r);
+  const W = 32 * r;
+  const X = new Int32Array(W), Y = new Int32Array(W), V = new Int32Array(W * N);
+  const T = new Int32Array(16), x = new Int32Array(16);
+  for (let q = 0; q < p; q++) {
+    const off = q * 128 * r;
+    for (let k = 0; k < W; k++) {
+      const o = off + k * 4;
+      X[k] = B[o] | (B[o + 1] << 8) | (B[o + 2] << 16) | (B[o + 3] << 24);
+    }
+    for (let i = 0; i < N; i++) { V.set(X, i * W); blockMix(X, Y, r, T, x); }
+    for (let i = 0; i < N; i++) {
+      const j = X[(2 * r - 1) * 16] & (N - 1);
+      for (let k = 0; k < W; k++) X[k] ^= V[j * W + k];
+      blockMix(X, Y, r, T, x);
+    }
+    for (let k = 0; k < W; k++) {
+      const o = off + k * 4, v = X[k];
+      B[o] = v & 255; B[o + 1] = (v >>> 8) & 255; B[o + 2] = (v >>> 16) & 255; B[o + 3] = (v >>> 24) & 255;
+    }
+  }
+  V.fill(0);
+  return pbkdf2Bytes(pass, B, dkLen);
+}
+
+// ---------- Связь с Android-приложением ----------
+const Native = (function () {
+  const A = window.AndroidApp;
+  let seq = 0;
+  const waits = {};
+  window.__androidCb = (id, ok, data) => {
+    const w = waits[id];
+    delete waits[id];
+    if (w) w({ ok: !!ok, data: String(data || '') });
+  };
+  function call(method, arg) {
+    return new Promise(resolve => {
+      if (!A || !A[method]) { resolve({ ok: false, data: 'unavailable' }); return; }
+      const id = ++seq;
+      waits[id] = resolve;
+      try { A[method](id, arg); } catch (e) { delete waits[id]; resolve({ ok: false, data: 'error' }); }
+    });
+  }
+  const sync = (method, arg) => {
+    try { return A && A[method] ? String(A[method](arg) || '') : ''; } catch (e) { return ''; }
+  };
+  return {
+    bioAvailable() { try { return !!(A && A.bioAvailable && A.bioAvailable()); } catch (e) { return false; } },
+    bioEncrypt: b64 => call('bioEncrypt', b64),
+    bioDecrypt: blob => call('bioDecrypt', blob),
+    bioReset() { try { if (A && A.bioReset) A.bioReset(); } catch (e) {} },
+    devEncrypt: s => sync('devEncrypt', s),
+    devDecrypt: s => sync('devDecrypt', s)
+  };
+})();
+
 // ---------- Сейф «Мои пароли» ----------
-// Пароли хранятся только на этом устройстве и только в зашифрованном виде:
-// ключ AES-256-GCM получается из узора или пароля через PBKDF2 (600 000 итераций).
+// Как устроена защита:
+//  • пароли шифруются случайным ключом данных (AES-256-GCM);
+//  • ключ данных заперт ключом из узора или пароля, полученным через scrypt;
+//  • в Android-приложении запертый ключ ещё раз шифруется аппаратным ключом
+//    телефона (Android Keystore) — без самого телефона его не расшифровать;
+//  • вход по отпечатку — отдельный аппаратный ключ, который работает
+//    только после проверки пальца и сбрасывается, если добавить новый отпечаток.
 const Vault = (function () {
   const STORE = 'pg95-vault';
   const FAILS = 'pg95-vault-fails';
-  const ITER = 600000;
+  const KDF = { name: 'scrypt', N: 65536, r: 8, p: 1 };
+  const LOCK_STEPS = [30, 60, 300, 900]; // паузы после 5, 6, 7 и 8+ ошибок, в секундах
   const MIN_DOTS = 6;
   const MIN_CHARS = 6;
   const N = 4; // сетка 4×4
   const enc = new TextEncoder();
   const dec = new TextDecoder();
 
-  // --- состояние ---
-  let key = null;        // ключ шифрования, только в памяти
-  let meta = null;       // { mode, iter, salt }
-  let items = [];        // расшифрованные пароли, только в памяти
+  // --- состояние (только в памяти, пока сейф открыт) ---
+  let key = null;        // ключ данных для шифрования
+  let dekRaw = null;     // он же в байтах — нужен, чтобы сменить узор или включить отпечаток
+  let meta = null;       // { mode, kdf, wrap, wrapBio }
+  let items = [];
   let selected = null;
   const revealed = new Set();
   let pending = null;    // кто ждёт открытия сейфа
+  let bioBusy = false;   // идёт проверка отпечатка
+  let rekey = false;     // меняем узор у открытого сейфа
 
   // --- элементы ---
   const $ = id => document.getElementById(id);
   const lockEl = $('vlock'), headEl = $('vlHead'), statusEl = $('vlStatus');
   const pad = $('vlPad'), wire = $('vlWire'), rubber = $('vlRubber'), dotsG = $('vlDots');
   const textBox = $('vlTextBox'), textInput = $('vlInput');
-  const switchBtn = $('vlSwitch'), forgotBtn = $('vlForgot'), cancelBtn = $('vlCancel');
+  const switchBtn = $('vlSwitch'), forgotBtn = $('vlForgot'), cancelBtn = $('vlCancel'), bioBtn = $('vlBio');
   const win = $('vaultWin'), list = $('vwList'), vwStatus = $('vwStatus'), fileInput = $('vwFile');
 
-  // --- base64 ---
+  // --- base64 и случайные байты ---
   function b64(u8) {
     let s = '';
     for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
@@ -1875,17 +2001,35 @@ const Vault = (function () {
     for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
     return u8;
   }
+  const rand = n => crypto.getRandomValues(new Uint8Array(n));
 
   // --- хранилище ---
+  const isBox = w => !!(w && typeof w.iv === 'string' && typeof w.ct === 'string');
+  function valid(r) {
+    if (!r || r.app !== 'pg95-vault' || (r.mode !== 'pattern' && r.mode !== 'text') || !isBox(r)) return false;
+    if (r.v === 2) {
+      const k = r.kdf;
+      return !!(k && k.name === 'scrypt' && typeof k.salt === 'string' &&
+        k.N >= 1024 && k.N <= 1048576 && (k.N & (k.N - 1)) === 0 &&
+        k.r >= 1 && k.r <= 32 && k.p >= 1 && k.p <= 16 &&
+        (isBox(r.wrap) || typeof r.wrapDev === 'string'));
+    }
+    return typeof r.salt === 'string' && r.iter > 0; // первая версия сейфа
+  }
   function load() {
     try {
       const r = JSON.parse(localStorage.getItem(STORE));
       return valid(r) ? r : null;
     } catch (e) { return null; }
   }
-  function valid(r) {
-    return r && r.app === 'pg95-vault' && (r.mode === 'pattern' || r.mode === 'text') &&
-      typeof r.salt === 'string' && typeof r.iv === 'string' && typeof r.ct === 'string' && r.iter > 0;
+  function save(rec) {
+    try {
+      localStorage.setItem(STORE, JSON.stringify(rec));
+      return true;
+    } catch (e) {
+      Dialog.ask({ title: 'Ошибка', icon: '⛔', text: 'Не удалось сохранить папку: в памяти нет места или доступ запрещён.', cancel: null });
+      return false;
+    }
   }
   function getFails() {
     try { return JSON.parse(localStorage.getItem(FAILS)) || { n: 0, until: 0 }; } catch (e) { return { n: 0, until: 0 }; }
@@ -1895,25 +2039,83 @@ const Vault = (function () {
   }
 
   // --- шифрование ---
-  async function deriveKey(secret, salt, iter) {
+  const aesKey = raw => crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
+
+  async function seal(k, bytes) {
+    const iv = rand(12);
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, k, bytes));
+    return { iv: b64(iv), ct: b64(ct) };
+  }
+  async function unseal(k, box) {
+    return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(box.iv) }, k, unb64(box.ct)));
+  }
+
+  // ключ из узора или пароля
+  async function kek(secret, kdf) {
+    const raw = await scrypt(enc.encode(secret), unb64(kdf.salt), kdf.N, kdf.r, kdf.p, 32);
+    const k = await aesKey(raw);
+    raw.fill(0);
+    return k;
+  }
+
+  // ключ первой версии сейфа (PBKDF2) — только чтобы открыть и обновить старый сейф
+  async function kekV1(secret, salt, iter) {
     const base = await crypto.subtle.importKey('raw', enc.encode(secret), 'PBKDF2', false, ['deriveKey']);
     return crypto.subtle.deriveKey(
       { name: 'PBKDF2', salt, iterations: iter, hash: 'SHA-256' },
       base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
   }
 
+  class DeviceError extends Error {}
+
+  // снять аппаратный слой (в приложении) и получить ключ данных, запертый узором
+  function plainWrap(rec) {
+    if (isBox(rec.wrap)) return rec.wrap;
+    const s = Native.devDecrypt(rec.wrapDev);
+    if (!s) throw new DeviceError('device');
+    return JSON.parse(s);
+  }
+
+  // запереть ключ данных новым узором или паролем
+  async function newWrap(secret) {
+    const kdf = Object.assign({}, KDF, { salt: b64(rand(16)) });
+    const k = await kek(secret, kdf);
+    return { kdf, wrap: await seal(k, dekRaw) };
+  }
+
   async function persist() {
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const ct = new Uint8Array(await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv }, key, enc.encode(JSON.stringify({ items }))));
-    const rec = { app: 'pg95-vault', v: 1, mode: meta.mode, iter: meta.iter, salt: meta.salt, iv: b64(iv), ct: b64(ct) };
-    try {
-      localStorage.setItem(STORE, JSON.stringify(rec));
-      return true;
-    } catch (e) {
-      Dialog.ask({ title: 'Ошибка', icon: '⛔', text: 'Не удалось сохранить папку: в памяти браузера нет места или доступ запрещён.', cancel: null });
-      return false;
+    const box = await seal(key, enc.encode(JSON.stringify({ items })));
+    const rec = { app: 'pg95-vault', v: 2, mode: meta.mode, kdf: meta.kdf, iv: box.iv, ct: box.ct };
+    const dev = Native.devEncrypt(JSON.stringify(meta.wrap));
+    if (dev) rec.wrapDev = dev; else rec.wrap = meta.wrap;
+    if (meta.wrapBio) rec.wrapBio = meta.wrapBio;
+    return save(rec);
+  }
+
+  async function openWithDek(raw, rec, wrap) {
+    const k = await aesKey(raw);
+    const data = JSON.parse(dec.decode(await unseal(k, rec)));
+    key = k;
+    dekRaw = raw;
+    items = Array.isArray(data.items) ? data.items : [];
+    meta = { mode: rec.mode, kdf: rec.kdf, wrap, wrapBio: rec.wrapBio || null };
+  }
+
+  async function unlockWithSecret(secret, rec) {
+    if (rec.v === 2) {
+      const wrap = plainWrap(rec);
+      const raw = await unseal(await kek(secret, rec.kdf), wrap);
+      await openWithDek(raw, rec, wrap);
+      if (!rec.wrapDev && Native.devEncrypt('test')) await persist(); // привязать к телефону
+      return;
     }
+    // первая версия: открываем и сразу переводим на новую защиту
+    const data = JSON.parse(dec.decode(await unseal(await kekV1(secret, unb64(rec.salt), rec.iter), rec)));
+    dekRaw = rand(32);
+    key = await aesKey(dekRaw);
+    items = Array.isArray(data.items) ? data.items : [];
+    meta = Object.assign({ mode: rec.mode, wrapBio: null }, await newWrap(secret));
+    await persist();
   }
 
   // ================= Экран сейфа =================
@@ -1931,6 +2133,8 @@ const Vault = (function () {
     statusEl.textContent = msg;
     setState(cls);
   }
+  const askText = () => kind === 'pattern' ? 'Проведите узор доступа' : 'Введите пароль сейфа';
+  const bioReady = rec => !!(rec && rec.v === 2 && rec.wrapBio && Native.bioAvailable());
 
   function render() {
     const isPattern = kind === 'pattern';
@@ -1941,19 +2145,23 @@ const Vault = (function () {
     forgotBtn.style.display = step === 'unlock' ? '' : 'none';
     forgotBtn.textContent = 'Забыли?';
     forgotBtn.classList.remove('danger');
+    bioBtn.style.display = step === 'unlock' && bioReady(load()) ? '' : 'none';
     forgotArmed = false;
     textInput.value = '';
     clearPattern();
 
     if (step === 'setup1') {
-      headEl.textContent = isPattern ? 'Создайте узор доступа' : 'Придумайте пароль сейфа';
-      status(isPattern ? 'Соедините пальцем не меньше ' + MIN_DOTS + ' точек' : 'Не меньше ' + MIN_CHARS + ' символов. Его нельзя будет восстановить!');
+      headEl.textContent = rekey
+        ? (isPattern ? 'Новый узор доступа' : 'Новый пароль сейфа')
+        : (isPattern ? 'Создайте узор доступа' : 'Придумайте пароль сейфа');
+      status(isPattern ? 'Соедините пальцем не меньше ' + MIN_DOTS + ' точек. Чем больше точек, тем надёжнее'
+        : 'Не меньше ' + MIN_CHARS + ' символов. Его нельзя будет восстановить!');
     } else if (step === 'setup2') {
       headEl.textContent = isPattern ? 'Повторите узор' : 'Повторите пароль';
       status('Для подтверждения');
     } else {
       headEl.textContent = 'Доступ к сейфу';
-      status(isPattern ? 'Проведите узор доступа' : 'Введите пароль сейфа');
+      status(askText());
       checkLockout();
     }
     if (!isPattern) setTimeout(() => textInput.focus(), 120);
@@ -1963,10 +2171,12 @@ const Vault = (function () {
     const rec = load();
     if (rec) { step = 'unlock'; kind = rec.mode; }
     else { step = 'setup1'; kind = 'pattern'; }
+    rekey = false;
     firstSecret = null;
     lockEl.classList.remove('leaving');
     lockEl.classList.add('show');
     render();
+    if (step === 'unlock' && bioReady(rec)) setTimeout(bioUnlock, 450);
   }
 
   function hideLock(animated, then) {
@@ -2002,6 +2212,10 @@ const Vault = (function () {
     target.classList.add('vl-shake');
   }
 
+  function fmtWait(s) {
+    return s >= 60 ? Math.floor(s / 60) + ' мин ' + String(s % 60).padStart(2, '0') + ' с' : s + ' с';
+  }
+
   function checkLockout() {
     clearInterval(lockoutTimer);
     const tick = () => {
@@ -2009,20 +2223,18 @@ const Vault = (function () {
       const locked = left > 0;
       pad.style.pointerEvents = locked ? 'none' : '';
       textInput.disabled = locked;
-      if (locked) status('Слишком много попыток. Подождите ' + left + ' с', 'err');
-      else if (lockEl.classList.contains('err') && statusEl.textContent.indexOf('Подождите') === 0) {
-        status(kind === 'pattern' ? 'Проведите узор доступа' : 'Введите пароль сейфа');
-      }
+      if (locked) status('Слишком много попыток. Подождите ' + fmtWait(left), 'err');
+      else if (lockEl.classList.contains('err') && statusEl.textContent.indexOf('Слишком много') === 0) status(askText());
       if (!locked) clearInterval(lockoutTimer);
     };
     tick();
     lockoutTimer = setInterval(tick, 1000);
   }
 
-  function setBusy(on) {
+  function setBusy(on, msg) {
     pad.classList.toggle('busy', on);
     textInput.disabled = on;
-    if (on) status('Расшифровка…');
+    if (on) status(msg || 'Расшифровка…');
   }
 
   async function submit(secret) {
@@ -2051,47 +2263,50 @@ const Vault = (function () {
         setTimeout(() => { step = 'setup1'; render(); }, 1300);
         return;
       }
-      setBusy(true);
-      status('Создаю сейф…');
+      firstSecret = null;
+      setBusy(true, rekey ? 'Перешифровываю…' : 'Создаю сейф…');
       try {
-        const salt = crypto.getRandomValues(new Uint8Array(16));
-        key = await deriveKey(secret, salt, ITER);
-        meta = { mode: kind, iter: ITER, salt: b64(salt) };
-        items = [];
-        if (!(await persist())) { key = null; setBusy(false); render(); return; }
+        if (rekey) {
+          Object.assign(meta, { mode: kind }, await newWrap(secret));
+        } else {
+          dekRaw = rand(32);
+          key = await aesKey(dekRaw);
+          items = [];
+          meta = Object.assign({ mode: kind, wrapBio: null }, await newWrap(secret));
+        }
+        if (!(await persist())) throw new Error('save');
         if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
       } catch (e) {
-        key = null;
         setBusy(false);
-        status('Не удалось создать сейф: этот браузер не поддерживает шифрование.', 'err');
+        if (!rekey) { key = null; dekRaw = null; meta = null; }
+        status('Не удалось сохранить сейф.', 'err');
         return;
       }
       setBusy(false);
-      firstSecret = null;
-      granted(true);
+      granted(rekey ? 'rekey' : 'created');
       return;
     }
 
-    // unlock
+    // открытие
     const rec = load();
     if (!rec) { step = 'setup1'; kind = 'pattern'; render(); return; }
     if (getFails().until > Date.now()) return;
     setBusy(true);
     try {
-      const k = await deriveKey(secret, unb64(rec.salt), rec.iter);
-      const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(rec.iv) }, k, unb64(rec.ct));
-      const data = JSON.parse(dec.decode(plain));
-      key = k;
-      meta = { mode: rec.mode, iter: rec.iter, salt: rec.salt };
-      items = Array.isArray(data.items) ? data.items : [];
+      await unlockWithSecret(secret, rec);
       setFails({ n: 0, until: 0 });
       setBusy(false);
-      granted(false);
+      granted('open');
     } catch (e) {
       setBusy(false);
+      if (e instanceof DeviceError) {
+        Sound.deny();
+        status('Сейф привязан к другому телефону или повреждён. Восстановите его из экспортированной копии.', 'err');
+        return;
+      }
       const f = getFails();
       f.n++;
-      if (f.n >= 5) f.until = Date.now() + 30000 * (f.n - 4);
+      if (f.n >= 5) f.until = Date.now() + 1000 * LOCK_STEPS[Math.min(f.n - 5, LOCK_STEPS.length - 1)];
       setFails(f);
       Sound.deny(); shake();
       const left = 5 - f.n;
@@ -2101,18 +2316,55 @@ const Vault = (function () {
         clearPattern();
         textInput.value = '';
         if (f.n >= 5) checkLockout();
-        else if (lockEl.classList.contains('show')) status(kind === 'pattern' ? 'Проведите узор доступа' : 'Введите пароль сейфа');
+        else if (lockEl.classList.contains('show')) status(askText());
       }, 1100);
     }
   }
 
-  function granted(created) {
-    headEl.textContent = created ? 'Сейф создан' : 'Доступ разрешён';
-    status(created ? 'Шифрование AES-256 включено' : 'Добро пожаловать', 'ok');
+  async function bioUnlock() {
+    const rec = load();
+    if (bioBusy || !bioReady(rec) || !lockEl.classList.contains('show') || step !== 'unlock') return;
+    bioBusy = true;
+    status('Приложите палец к датчику');
+    const r = await Native.bioDecrypt(rec.wrapBio);
+    bioBusy = false;
+    if (!lockEl.classList.contains('show')) return;
+    if (r.ok) {
+      setBusy(true);
+      try {
+        await openWithDek(unb64(r.data), rec, plainWrap(rec));
+        setFails({ n: 0, until: 0 });
+        setBusy(false);
+        granted('open');
+      } catch (e) {
+        setBusy(false);
+        status('Не удалось открыть отпечатком. ' + askText(), 'err');
+      }
+      return;
+    }
+    if (r.data === 'invalidated') {
+      const rc = load();
+      if (rc) { delete rc.wrapBio; save(rc); }
+      bioBtn.style.display = 'none';
+      status('Отпечатки на телефоне изменились, поэтому вход по отпечатку выключен. ' + askText() + ' и включите его снова.', 'err');
+      return;
+    }
+    status(askText());
+  }
+  bioBtn.addEventListener('click', bioUnlock);
+
+  function granted(what) {
+    headEl.textContent = what === 'created' ? 'Сейф создан' : what === 'rekey' ? (meta.mode === 'pattern' ? 'Узор изменён' : 'Пароль изменён') : 'Доступ разрешён';
+    status(what === 'open' ? 'Добро пожаловать' : 'Шифрование AES-256 · scrypt', 'ok');
     Sound.granted();
     setTimeout(() => hideLock(true, () => {
+      if (what === 'rekey') {
+        rekey = false;
+        showExplorer();
+        return;
+      }
       finish(true);
-      if (created) {
+      if (what === 'created') {
         Helper.say('Сейф создан! Запомните ' + (meta.mode === 'pattern' ? 'узор' : 'пароль') +
           ': без него пароли не откроет никто, даже я. И иногда делайте «Экспорт» — запасную копию на случай потери телефона.', 'Ключик', 16000);
       }
@@ -2226,7 +2478,9 @@ const Vault = (function () {
     render();
   });
 
-  cancelBtn.addEventListener('click', () => hideLock(false, () => finish(false)));
+  cancelBtn.addEventListener('click', () => hideLock(false, () => {
+    if (rekey) { rekey = false; showExplorer(); } else finish(false);
+  }));
 
   forgotBtn.addEventListener('click', () => {
     if (!forgotArmed) {
@@ -2282,6 +2536,10 @@ const Vault = (function () {
     const has = items.some(i => i.id === selected);
     win.querySelectorAll('.ex-actions .win95-button').forEach(b => { b.disabled = !has; });
     win.querySelector('[data-vw="show"]').textContent = has && revealed.has(selected) ? 'Скрыть' : 'Показать';
+    $('vwRekey').textContent = meta && meta.mode === 'text' ? '🔑 Сменить пароль' : '🔑 Сменить узор';
+    const bioOk = Native.bioAvailable();
+    $('vwBio').style.display = bioOk ? '' : 'none';
+    $('vwBio').textContent = '👆 Отпечаток: ' + (meta && meta.wrapBio ? 'вкл' : 'выкл');
   }
 
   function showExplorer() {
@@ -2305,6 +2563,18 @@ const Vault = (function () {
     if (a === 'lock') { lock(); Sound.shutdown(); return; }
     if (a === 'export') return exportVault();
     if (a === 'import') { fileInput.value = ''; fileInput.click(); return; }
+    if (a === 'rekey') {
+      rekey = true;
+      kind = meta.mode;
+      step = 'setup1';
+      firstSecret = null;
+      win.classList.remove('show');
+      lockEl.classList.remove('leaving');
+      lockEl.classList.add('show');
+      render();
+      return;
+    }
+    if (a === 'bio') return toggleBio();
     if (!it) return;
     if (a === 'show') {
       if (revealed.has(it.id)) revealed.delete(it.id); else revealed.add(it.id);
@@ -2332,6 +2602,35 @@ const Vault = (function () {
     }
   }
 
+  async function toggleBio() {
+    if (meta.wrapBio) {
+      const ok = await Dialog.ask({ title: 'Отпечаток', icon: '👆', ok: 'Выключить', cancel: 'Отмена', text: 'Выключить вход по отпечатку? Сейф будет открываться только узором.' });
+      if (!ok || !key) return;
+      meta.wrapBio = null;
+      Native.bioReset();
+      await persist();
+      renderList();
+      return;
+    }
+    bioBusy = true;
+    const r = await Native.bioEncrypt(b64(dekRaw));
+    bioBusy = false;
+    if (!key) return;
+    if (!r.ok) {
+      if (r.data !== 'cancel') Dialog.ask({ title: 'Отпечаток', icon: '⛔', cancel: null, text: 'Не получилось включить вход по отпечатку. Проверьте, что отпечаток добавлен в настройках телефона.' });
+      return;
+    }
+    meta.wrapBio = r.data;
+    await persist();
+    Sound.granted();
+    renderList();
+    Dialog.ask({
+      title: 'Отпечаток', icon: '👆', cancel: null,
+      text: 'Готово! Теперь сейф открывается отпечатком. ' + (meta.mode === 'pattern' ? 'Узор' : 'Пароль') +
+        ' всё равно запомните: он нужен, если отпечатки на телефоне изменятся, и чтобы открыть экспортированную копию.'
+    });
+  }
+
   win.addEventListener('click', e => {
     const b = e.target.closest('[data-vw]');
     if (b && !b.disabled) vwAction(b.dataset.vw);
@@ -2340,9 +2639,10 @@ const Vault = (function () {
 
   // --- экспорт / импорт ---
   function exportVault() {
-    let raw = null;
-    try { raw = localStorage.getItem(STORE); } catch (e) {}
-    if (!raw) return;
+    const rec = load();
+    if (!rec || !meta || !isBox(meta.wrap)) return;
+    // копия не привязана к телефону: открыть её можно только узором или паролем
+    const raw = JSON.stringify({ app: 'pg95-vault', v: 2, mode: meta.mode, kdf: meta.kdf, wrap: meta.wrap, iv: rec.iv, ct: rec.ct });
     const fileName = 'passgen-backup-' + new Date().toISOString().slice(0, 10) + '.json';
     const what = (meta && meta.mode === 'text' ? 'паролем' : 'узором');
     if (window.AndroidApp && AndroidApp.saveFile) {
@@ -2402,6 +2702,9 @@ const Vault = (function () {
 
   // ================= Общее =================
   function lock() {
+    if (dekRaw) dekRaw.fill(0);
+    dekRaw = null;
+    rekey = false;
     key = null;
     meta = null;
     items = [];
@@ -2443,7 +2746,7 @@ const Vault = (function () {
   document.getElementById('saveBtn').addEventListener('click', saveCurrent);
   document.getElementById('deskVault').addEventListener('click', open);
   // свернули приложение — сейф запирается
-  document.addEventListener('visibilitychange', () => { if (document.hidden) lock(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && !bioBusy) lock(); });
 
   return { open, lock, saveCurrent, isUnlocked: () => !!key };
 })();
