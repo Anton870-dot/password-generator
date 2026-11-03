@@ -83,7 +83,7 @@ jobs:
                   minSdk = 24
                   targetSdk = 34
                   versionCode = buildNumber
-                  versionName = '2.0.' + buildNumber
+                  versionName = '3.0.' + buildNumber
               }
 
               signingConfigs {
@@ -116,14 +116,18 @@ jobs:
           mkdir -p "$(dirname android/app/src/main/AndroidManifest.xml)"
           cat > android/app/src/main/AndroidManifest.xml <<'PASSGEN_EOF'
           <?xml version="1.0" encoding="utf-8"?>
-          <!-- Разрешения на интернет нет: приложение физически не может ничего отправить в сеть -->
+          <!-- Разрешения на интернет нет: приложение физически не может ничего отправить в сеть.
+               Резервное копирование Android выключено: сейф привязан к железу этого телефона,
+               перенос — только через «Экспорт». -->
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 
               <application
                   android:label="PassGen 95"
                   android:icon="@mipmap/ic_launcher"
                   android:roundIcon="@mipmap/ic_launcher"
-                  android:allowBackup="true"
+                  android:allowBackup="false"
                   android:hardwareAccelerated="true"
                   android:theme="@style/AppTheme">
 
@@ -180,13 +184,23 @@ jobs:
           import android.content.ContentValues;
           import android.content.Intent;
           import android.graphics.Color;
+          import android.hardware.biometrics.BiometricManager;
+          import android.hardware.biometrics.BiometricPrompt;
           import android.net.Uri;
           import android.os.Build;
           import android.os.Bundle;
+          import android.os.CancellationSignal;
           import android.os.Environment;
+          import android.os.Handler;
+          import android.os.Looper;
           import android.os.PersistableBundle;
           import android.provider.MediaStore;
+          import android.security.keystore.KeyGenParameterSpec;
+          import android.security.keystore.KeyPermanentlyInvalidatedException;
+          import android.security.keystore.KeyProperties;
+          import android.util.Base64;
           import android.view.View;
+          import android.view.WindowManager;
           import android.webkit.JavascriptInterface;
           import android.webkit.ValueCallback;
           import android.webkit.WebChromeClient;
@@ -203,8 +217,17 @@ jobs:
           import java.io.InputStream;
           import java.io.OutputStream;
           import java.nio.charset.StandardCharsets;
+          import java.security.Key;
+          import java.security.KeyStore;
           import java.util.HashMap;
           import java.util.Map;
+
+          import javax.crypto.Cipher;
+          import javax.crypto.KeyGenerator;
+          import javax.crypto.SecretKey;
+          import javax.crypto.spec.GCMParameterSpec;
+
+          import org.json.JSONObject;
 
           /**
            * Оболочка для веб-приложения PassGen 95.
@@ -217,12 +240,21 @@ jobs:
               private static final String HOST = "appassets.androidplatform.net";
               private static final int FILE_REQUEST = 1;
 
+              private static final String DEVICE_KEY = "passgen_device"; // привязка сейфа к телефону
+              private static final String BIO_KEY = "passgen_bio";       // вход по отпечатку
+              private static final long CLIPBOARD_CLEAR_MS = 60_000;
+
               private WebView web;
               private ValueCallback<Uri[]> fileCallback;
+              private final Handler main = new Handler(Looper.getMainLooper());
+              private Runnable clipboardClear;
 
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
+
+                  // Запрет снимков и записи экрана; в списке недавних приложений окно скрыто
+                  getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE);
 
                   web = new WebView(this);
                   web.setBackgroundColor(Color.rgb(0, 128, 128));
@@ -378,6 +410,7 @@ jobs:
                               clip.getDescription().setExtras(extras);
                           }
                           cm.setPrimaryClip(clip);
+                          scheduleClipboardClear();
                           return true;
                       } catch (Exception e) {
                           return false;
@@ -416,6 +449,221 @@ jobs:
                           return "";
                       }
                   }
+
+                  // ----- аппаратная привязка к телефону (без запроса отпечатка) -----
+
+                  @JavascriptInterface
+                  public String devEncrypt(String plain) {
+                      try {
+                          Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+                          c.init(Cipher.ENCRYPT_MODE, keystoreKey(DEVICE_KEY, false));
+                          return pack(c.getIV(), c.doFinal(plain.getBytes(StandardCharsets.UTF_8)));
+                      } catch (Exception e) {
+                          return "";
+                      }
+                  }
+
+                  @JavascriptInterface
+                  public String devDecrypt(String packed) {
+                      try {
+                          if (!hasKey(DEVICE_KEY)) return "";
+                          byte[][] p = unpack(packed);
+                          Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+                          c.init(Cipher.DECRYPT_MODE, keystoreKey(DEVICE_KEY, false), new GCMParameterSpec(128, p[0]));
+                          return new String(c.doFinal(p[1]), StandardCharsets.UTF_8);
+                      } catch (Exception e) {
+                          return "";
+                      }
+                  }
+
+                  // ----- вход по отпечатку (Android 11+) -----
+
+                  @JavascriptInterface
+                  public boolean bioAvailable() {
+                      if (Build.VERSION.SDK_INT < 30) return false;
+                      try {
+                          BiometricManager bm = getSystemService(BiometricManager.class);
+                          return bm != null && bm.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+                                  == BiometricManager.BIOMETRIC_SUCCESS;
+                      } catch (Exception e) {
+                          return false;
+                      }
+                  }
+
+                  @JavascriptInterface
+                  public void bioEncrypt(int id, String dataB64) {
+                      if (Build.VERSION.SDK_INT < 30) { callback(id, false, "unavailable"); return; }
+                      runOnUiThread(() -> {
+                          try {
+                              byte[] data = Base64.decode(dataB64, Base64.NO_WRAP);
+                              Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+                              try {
+                                  c.init(Cipher.ENCRYPT_MODE, keystoreKey(BIO_KEY, true));
+                              } catch (KeyPermanentlyInvalidatedException e) {
+                                  deleteKey(BIO_KEY);
+                                  c.init(Cipher.ENCRYPT_MODE, keystoreKey(BIO_KEY, true));
+                              }
+                              biometricPrompt(id, c, "Вход по отпечатку", "Подтвердите, чтобы включить",
+                                      cipher -> pack(cipher.getIV(), cipher.doFinal(data)));
+                          } catch (Exception e) {
+                              callback(id, false, "error");
+                          }
+                      });
+                  }
+
+                  @JavascriptInterface
+                  public void bioDecrypt(int id, String packed) {
+                      if (Build.VERSION.SDK_INT < 30) { callback(id, false, "unavailable"); return; }
+                      runOnUiThread(() -> {
+                          try {
+                              if (!hasKey(BIO_KEY)) { callback(id, false, "invalidated"); return; }
+                              byte[][] p = unpack(packed);
+                              Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+                              try {
+                                  c.init(Cipher.DECRYPT_MODE, keystoreKey(BIO_KEY, true), new GCMParameterSpec(128, p[0]));
+                              } catch (KeyPermanentlyInvalidatedException e) {
+                                  deleteKey(BIO_KEY);
+                                  callback(id, false, "invalidated");
+                                  return;
+                              }
+                              biometricPrompt(id, c, "Сейф PassGen 95", "Приложите палец, чтобы открыть",
+                                      cipher -> Base64.encodeToString(cipher.doFinal(p[1]), Base64.NO_WRAP));
+                          } catch (Exception e) {
+                              callback(id, false, "error");
+                          }
+                      });
+                  }
+
+                  @JavascriptInterface
+                  public void bioReset() {
+                      deleteKey(BIO_KEY);
+                  }
+              }
+
+              // ---------- Android Keystore ----------
+
+              private interface CipherStep {
+                  String run(Cipher cipher) throws Exception;
+              }
+
+              private static boolean hasKey(String alias) {
+                  try {
+                      KeyStore ks = KeyStore.getInstance("AndroidKeyStore");
+                      ks.load(null);
+                      return ks.containsAlias(alias);
+                  } catch (Exception e) {
+                      return false;
+                  }
+              }
+
+              private static void deleteKey(String alias) {
+                  try {
+                      KeyStore ks = KeyStore.getInstance("AndroidKeyStore");
+                      ks.load(null);
+                      ks.deleteEntry(alias);
+                  } catch (Exception ignored) {
+                  }
+              }
+
+              /** Ключ живёт в защищённом железе телефона и не может быть оттуда извлечён. */
+              private static SecretKey keystoreKey(String alias, boolean biometric) throws Exception {
+                  KeyStore ks = KeyStore.getInstance("AndroidKeyStore");
+                  ks.load(null);
+                  Key k = ks.getKey(alias, null);
+                  if (k instanceof SecretKey) return (SecretKey) k;
+                  if (Build.VERSION.SDK_INT >= 28) {
+                      try {
+                          return generateKey(alias, biometric, true); // отдельный чип безопасности, если он есть
+                      } catch (Exception ignored) {
+                          deleteKey(alias);
+                      }
+                  }
+                  return generateKey(alias, biometric, false);
+              }
+
+              private static SecretKey generateKey(String alias, boolean biometric, boolean strongBox) throws Exception {
+                  KeyGenParameterSpec.Builder b = new KeyGenParameterSpec.Builder(alias,
+                          KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+                          .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                          .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                          .setKeySize(256);
+                  if (biometric) {
+                      b.setUserAuthenticationRequired(true);
+                      b.setInvalidatedByBiometricEnrollment(true); // новый отпечаток — ключ сбрасывается
+                      if (Build.VERSION.SDK_INT >= 30) {
+                          b.setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG);
+                      }
+                  }
+                  if (strongBox && Build.VERSION.SDK_INT >= 28) b.setIsStrongBoxBacked(true);
+                  KeyGenerator kg = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+                  kg.init(b.build());
+                  return kg.generateKey();
+              }
+
+              private static String pack(byte[] iv, byte[] ct) {
+                  return Base64.encodeToString(iv, Base64.NO_WRAP) + "." + Base64.encodeToString(ct, Base64.NO_WRAP);
+              }
+
+              private static byte[][] unpack(String s) {
+                  int dot = s.indexOf('.');
+                  return new byte[][]{
+                          Base64.decode(s.substring(0, dot), Base64.NO_WRAP),
+                          Base64.decode(s.substring(dot + 1), Base64.NO_WRAP)
+                  };
+              }
+
+              // ---------- окно проверки отпечатка ----------
+
+              private void biometricPrompt(int id, Cipher cipher, String title, String subtitle, CipherStep step) {
+                  if (Build.VERSION.SDK_INT < 30) { callback(id, false, "unavailable"); return; }
+                  BiometricPrompt prompt = new BiometricPrompt.Builder(this)
+                          .setTitle(title)
+                          .setSubtitle(subtitle)
+                          .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+                          .setNegativeButton("Отмена", getMainExecutor(), (dialog, which) -> callback(id, false, "cancel"))
+                          .build();
+                  prompt.authenticate(new BiometricPrompt.CryptoObject(cipher), new CancellationSignal(), getMainExecutor(),
+                          new BiometricPrompt.AuthenticationCallback() {
+                              @Override
+                              public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
+                                  try {
+                                      callback(id, true, step.run(result.getCryptoObject().getCipher()));
+                                  } catch (Exception e) {
+                                      callback(id, false, "error");
+                                  }
+                              }
+
+                              @Override
+                              public void onAuthenticationError(int code, CharSequence message) {
+                                  callback(id, false, "cancel");
+                              }
+                          });
+              }
+
+              private void callback(int id, boolean ok, String data) {
+                  runOnUiThread(() -> {
+                      if (web != null) {
+                          web.evaluateJavascript("window.__androidCb && window.__androidCb(" + id + "," + ok + ","
+                                  + JSONObject.quote(data) + ")", null);
+                      }
+                  });
+              }
+
+              // ---------- автоочистка буфера обмена ----------
+
+              private void scheduleClipboardClear() {
+                  main.post(() -> {
+                      if (clipboardClear != null) main.removeCallbacks(clipboardClear);
+                      clipboardClear = () -> {
+                          try {
+                              ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                              if (Build.VERSION.SDK_INT >= 28) cm.clearPrimaryClip();
+                              else cm.setPrimaryClip(ClipData.newPlainText("", ""));
+                          } catch (Exception ignored) {
+                          }
+                      };
+                      main.postDelayed(clipboardClear, CLIPBOARD_CLEAR_MS);
+                  });
               }
           }
           PASSGEN_EOF
