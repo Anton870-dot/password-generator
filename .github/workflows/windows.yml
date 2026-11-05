@@ -111,8 +111,8 @@ jobs:
             Menu.setApplicationMenu(null);
 
             win = new BrowserWindow({
-              width: 460,
-              height: 840,
+              width: 1024, // классическое разрешение Windows 95
+              height: 768,
               minWidth: 360,
               minHeight: 600,
               title: 'PassGen 95',
