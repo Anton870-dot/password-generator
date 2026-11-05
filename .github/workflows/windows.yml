@@ -1,0 +1,176 @@
+# Сборка программы PassGen 95 для Windows.
+# Этот файл сам создаёт проект, собирает установщик .exe
+# и выкладывает его на странице Releases репозитория.
+name: Сборка программы для Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'index.html'
+      - 'manifest.json'
+      - 'icon-512.png'
+      - '.github/workflows/windows.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Создаём проект программы
+        run: |
+          set -e
+          mkdir -p desktop/www
+          cat > desktop/package.json <<'PASSGEN_EOF'
+          {
+            "name": "passgen95",
+            "productName": "PassGen 95",
+            "version": "3.0.0",
+            "description": "PassGen 95 - password generator in Windows 95 style",
+            "author": "Anton870-dot",
+            "main": "main.js",
+            "private": true,
+            "devDependencies": {
+              "electron": "33.2.1",
+              "electron-builder": "25.1.8"
+            },
+            "build": {
+              "appId": "io.github.anton870dot.passgen",
+              "productName": "PassGen 95",
+              "directories": { "output": "dist" },
+              "files": ["main.js", "icon.png", "www/**"],
+              "win": { "target": ["nsis"], "icon": "icon.png" },
+              "nsis": {
+                "oneClick": true,
+                "perMachine": false,
+                "createDesktopShortcut": true,
+                "createStartMenuShortcut": true,
+                "shortcutName": "PassGen 95",
+                "artifactName": "PassGen95-Setup-${version}.${ext}"
+              }
+            }
+          }
+          PASSGEN_EOF
+          cat > desktop/main.js <<'PASSGEN_EOF'
+          // PassGen 95 для Windows.
+          // Окно показывает тот же index.html, что и сайт, но без браузера:
+          // страница лежит внутри программы и открывается по адресу app://passgen/.
+          const { app, BrowserWindow, protocol, net, session, shell, Menu } = require('electron');
+          const path = require('path');
+          const { pathToFileURL } = require('url');
+
+          protocol.registerSchemesAsPrivileged([
+            { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } }
+          ]);
+
+          // вторая копия программы не запускается — вместо этого показываем первую
+          if (!app.requestSingleInstanceLock()) app.quit();
+
+          let win = null;
+
+          app.on('second-instance', () => {
+            if (!win) return;
+            if (win.isMinimized()) win.restore();
+            win.focus();
+          });
+
+          app.whenReady().then(() => {
+            const root = path.join(__dirname, 'www');
+
+            // раздача файлов приложения
+            protocol.handle('app', request => {
+              let p = decodeURIComponent(new URL(request.url).pathname);
+              if (!p || p === '/') p = '/index.html';
+              const file = path.normalize(path.join(root, p));
+              if (!file.toLowerCase().startsWith(root.toLowerCase())) return new Response('Not found', { status: 404 });
+              return net.fetch(pathToFileURL(file).toString());
+            });
+
+            // никакой сети: всё, кроме файлов самой программы, блокируется
+            session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
+              callback({ cancel: !/^(app|data|blob|devtools):/i.test(details.url) });
+            });
+
+            // из разрешений нужно только копирование в буфер обмена
+            session.defaultSession.setPermissionRequestHandler((wc, permission, callback) => {
+              callback(permission === 'clipboard-sanitized-write');
+            });
+
+            Menu.setApplicationMenu(null);
+
+            win = new BrowserWindow({
+              width: 460,
+              height: 840,
+              minWidth: 360,
+              minHeight: 600,
+              title: 'PassGen 95',
+              backgroundColor: '#008080',
+              icon: path.join(__dirname, 'icon.png'),
+              autoHideMenuBar: true,
+              webPreferences: {
+                contextIsolation: true,
+                nodeIntegration: false,
+                sandbox: true,
+                spellcheck: false,
+                autoplayPolicy: 'no-user-gesture-required' // мелодия запуска играет сразу
+              }
+            });
+
+            // окно не попадает на снимки и записи экрана
+            win.setContentProtection(true);
+
+            // уйти со страницы приложения нельзя; внешние ссылки открываются в браузере
+            win.webContents.on('will-navigate', (event, url) => {
+              if (!url.startsWith('app://')) event.preventDefault();
+            });
+            win.webContents.setWindowOpenHandler(({ url }) => {
+              if (/^https:\/\//i.test(url)) shell.openExternal(url);
+              return { action: 'deny' };
+            });
+
+            win.on('closed', () => { win = null; });
+            win.loadURL('app://passgen/index.html');
+          });
+
+          app.on('window-all-closed', () => app.quit());
+          PASSGEN_EOF
+          cp index.html manifest.json icon-192.png icon-512.png desktop/www/
+          cp icon-512.png desktop/icon.png
+          sed -i "s/\"version\": \"3.0.0\"/\"version\": \"3.0.${{ github.run_number }}\"/" desktop/package.json
+          grep '"version"' desktop/package.json
+
+      - name: Устанавливаем Electron
+        working-directory: desktop
+        run: npm install --no-audit --no-fund
+
+      - name: Собираем установщик
+        working-directory: desktop
+        run: npx electron-builder --win nsis --publish never
+
+      - name: Публикация на странице Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          EXE=$(ls desktop/dist/PassGen95-Setup-*.exe | head -1)
+          echo "Установщик: $EXE"
+          gh release create "win-${{ github.run_number }}" "$EXE" \
+            --title "PassGen 95 для Windows — сборка ${{ github.run_number }}" \
+            --notes "Скачайте $(basename "$EXE") и запустите. Если Windows покажет «Windows защитила ваш компьютер», нажмите «Подробнее» → «Выполнить в любом случае»." \
+            --latest=false
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PassGen95-Windows
+          path: desktop/dist/PassGen95-Setup-*.exe
