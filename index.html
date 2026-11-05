@@ -397,52 +397,142 @@ input { user-select: text; -webkit-user-select: text; }
 }
 .dlg-btns { margin: 6px 0 12px; }
 
-/* ---------- Проводник «Мои пароли» ---------- */
-.modal .win95-window.explorer { max-width: 400px; width: 100%; }
+/* ---------- Сейф (окно в стиле Проводника) ---------- */
+#vaultWin, #scanWin { padding: 8px; }
+.modal .win95-window.explorer {
+  width: min(1000px, 100%);
+  max-width: none;
+  height: min(720px, 100%);
+  display: flex;
+  flex-direction: column;
+}
 .ex-toolbar { display: flex; gap: 2px; padding: 3px; border-bottom: 1px solid #808080; box-shadow: 0 1px 0 #fff; flex-wrap: wrap; }
 .ex-tool {
   background: #c0c0c0;
   border: 1px solid transparent;
   font: inherit;
-  padding: 5px 7px;
+  padding: 5px 8px;
   cursor: pointer;
 }
+.ex-tool:hover { border-color: #ffffff #808080 #808080 #ffffff; }
 .ex-tool:active { border-color: #808080 #ffffff #ffffff #808080; }
-.ex-addr {
-  margin: 4px 6px;
-  padding: 3px 6px;
+.ex-input {
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 6px;
+  color: #000;
   background: #fff;
   border: 2px solid;
   border-color: #808080 #ffffff #ffffff #808080;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  border-radius: 0;
+  outline: none;
+  min-width: 0;
 }
-.ex-list {
-  margin: 0 6px;
-  height: min(46vh, 300px);
-  overflow-y: auto;
+.ex-input:focus { outline: 1px dotted #000; outline-offset: -4px; }
+.ex-input.mono { font-family: "Courier New", monospace; font-size: 14px; }
+.ex-search { display: flex; gap: 6px; padding: 5px 6px; }
+.ex-search #vwSearch { flex: 1; }
+.ex-folder-select { display: none; }
+.ex-main {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 180px minmax(220px, 1fr) minmax(290px, 1.35fr);
+  gap: 6px;
+  padding: 0 6px 6px;
+}
+.ex-pane {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
   background: #fff;
   border: 2px solid;
   border-color: #808080 #ffffff #ffffff #808080;
 }
+.ex-node { display: flex; gap: 6px; align-items: center; padding: 5px 6px; cursor: default; white-space: nowrap; }
+.ex-node .cnt { margin-left: auto; color: #808080; font-size: 11px; }
+.ex-node.sel { background: #000080; color: #fff; }
+.ex-node.sel .cnt { color: #c0c0ff; }
 .ex-row {
   display: grid;
-  grid-template-columns: 22px 1fr auto;
-  grid-template-rows: auto auto;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
   column-gap: 6px;
   padding: 5px 6px;
   cursor: default;
 }
-.ex-row .ex-ico { grid-row: 1 / 3; font-size: 16px; line-height: 30px; }
+.ex-row .ex-ico { grid-row: 1 / 3; font-size: 16px; line-height: 32px; }
 .ex-row .ex-name { font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ex-row .ex-date { color: #808080; font-size: 11px; }
-.ex-row .ex-pwd { grid-column: 2 / 4; font-family: "Courier New", monospace; font-size: 13px; word-break: break-all; }
+.ex-row .ex-sub { grid-column: 2 / 4; color: #555; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ex-row.sel { background: #000080; color: #fff; }
-.ex-row.sel .ex-date { color: #c0c0ff; }
+.ex-row.sel .ex-date, .ex-row.sel .ex-sub { color: #c0c0ff; }
 .ex-empty { padding: 20px 14px; color: #555; text-align: center; line-height: 1.5; }
-.ex-actions { display: flex; gap: 4px; padding: 8px 6px 6px; }
-.ex-actions .win95-button { min-width: 0; flex: 1; padding: 6px 4px; font-size: 11px; }
+
+/* панель подробностей — как окно «Свойства» */
+.ex-details { background: #c0c0c0; border: none; display: flex; flex-direction: column; gap: 10px; padding: 8px 6px 10px; }
+.ex-dhead { display: flex; gap: 6px; align-items: center; }
+.ex-dhead .ex-input { flex: 1; font-weight: bold; font-size: 14px; }
+.ex-dico { font-size: 22px; line-height: 1; }
+.ex-field { display: grid; gap: 3px; }
+.ex-field > label { font-size: 12px; }
+.ex-irow { display: flex; gap: 4px; }
+.ex-irow .ex-input { flex: 1; }
+.ex-mini {
+  flex: none;
+  min-width: 34px;
+  font: inherit;
+  font-size: 12px;
+  color: #000;
+  background: #c0c0c0;
+  border: 2px solid;
+  border-color: #ffffff #808080 #808080 #ffffff;
+  padding: 3px 7px;
+  cursor: pointer;
+}
+.ex-mini:active { border-color: #808080 #ffffff #ffffff #808080; }
+.ex-hint { font-size: 11px; color: #333; }
+.ex-meta { font-size: 11px; color: #444; line-height: 1.5; }
+.ex-dactions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }
+.ex-dactions .win95-button { min-width: 0; }
+.ex-back { display: none; }
+.ex-notepad {
+  flex: 1;
+  min-height: 220px;
+  resize: none;
+  font: 14px/1.5 "Courier New", monospace;
+  white-space: pre-wrap;
+}
+.ex-placeholder { margin: auto; color: #333; text-align: center; padding: 20px; line-height: 1.5; }
+
+/* средний экран: папки — выпадающим списком */
+@media (max-width: 860px) {
+  .ex-main { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); }
+  .ex-tree { display: none; }
+  .ex-folder-select { display: block; flex: 0 1 150px; }
+}
+/* телефон: список и подробности по очереди */
+@media (max-width: 600px) {
+  .ex-main { grid-template-columns: minmax(0, 1fr); }
+  .ex-main .ex-details { display: none; }
+  .ex-main.detail .ex-list { display: none; }
+  .ex-main.detail .ex-details { display: flex; }
+  .ex-back { display: inline-block; }
+  .ex-folder-select { flex-basis: 120px; }
+}
+
+/* ---------- ScanDisk ---------- */
+.modal .win95-window.scan { width: min(480px, 100%); max-width: none; }
+.sd-body { display: grid; gap: 10px; padding: 12px; }
+.sd-head { display: flex; gap: 10px; align-items: flex-start; line-height: 1.4; }
+.sd-head .sd-ico { font-size: 28px; line-height: 1; }
+.sd-bar { height: 20px; background: #fff; border: 2px solid; border-color: #808080 #ffffff #ffffff #808080; padding: 2px; }
+.sd-fill { height: 100%; width: 0; background: repeating-linear-gradient(90deg, #000080 0 10px, transparent 10px 12px); }
+.sd-results { max-height: min(45vh, 320px); overflow: auto; background: #fff; border: 2px solid; border-color: #808080 #ffffff #ffffff #808080; }
+.sd-item { padding: 6px 8px; border-bottom: 1px solid #e0e0e0; cursor: pointer; }
+.sd-item:hover { background: #000080; color: #fff; }
+.sd-item b { display: block; }
+.sd-item span { display: block; font-size: 12px; }
+.sd-ok { padding: 16px; text-align: center; line-height: 1.5; }
 
 /* ---------- Сейф: футуристичный экран входа ---------- */
 .vlock {
@@ -893,7 +983,7 @@ input { user-select: text; -webkit-user-select: text; }
   <div class="boot-strip"></div>
 </div>
 <div class="desktop" id="desktop">
-<div class="desk-icon" id="deskVault" role="button" aria-label="Мои пароли"><svg viewBox="0 0 32 32" width="38" height="38"><path d="M2 7h10l3 3h15v18H2z" fill="#d8ac2c" stroke="#000" stroke-width="1"/><path d="M2 12h28v16H2z" fill="#ffdc6b" stroke="#000" stroke-width="1"/><path d="M13.5 17.5v-2a2.5 2.5 0 0 1 5 0v2" fill="none" stroke="#000" stroke-width="1.2"/><rect x="12" y="17.5" width="8" height="6.5" fill="#c0c0c0" stroke="#000" stroke-width="1"/><circle cx="16" cy="20.6" r="1" fill="#000"/></svg><span>Мои пароли</span></div>
+<div class="desk-icon" id="deskVault" role="button" aria-label="Сейф"><svg viewBox="0 0 32 32" width="38" height="38"><rect x="3" y="4" width="26" height="23" fill="#8a8a8a" stroke="#000"/><rect x="5.5" y="6.5" width="21" height="18" fill="#c0c0c0" stroke="#404040"/><circle cx="14" cy="15.5" r="5" fill="#e8e8e8" stroke="#000"/><circle cx="14" cy="15.5" r="1.4" fill="#000"/><path d="M14 10.5v2M14 18.5v2M9 15.5h2M17 15.5h2" stroke="#000"/><rect x="22" y="12" width="2.5" height="7" fill="#404040"/><rect x="6" y="27" width="4" height="2" fill="#000"/><rect x="22" y="27" width="4" height="2" fill="#000"/></svg><span>Сейф</span></div>
 <div class="win95-window" id="mainWindow">
   <div class="win95-titlebar">
     <span>🔐 Password Generator</span>
@@ -908,8 +998,8 @@ input { user-select: text; -webkit-user-select: text; }
       <div class="menu-popup">
         <div class="menu-item" data-action="generate">Сгенерировать</div>
         <div class="menu-item" data-action="copy">Скопировать</div>
-        <div class="menu-item" data-action="savepwd">Сохранить в папку...</div>
-        <div class="menu-item" data-action="vault">Мои пароли</div>
+        <div class="menu-item" data-action="savepwd">Сохранить в сейф...</div>
+        <div class="menu-item" data-action="vault">Сейф</div>
         <div class="menu-sep"></div>
         <div class="menu-item" data-action="shutdown">Выход</div>
       </div>
@@ -960,12 +1050,12 @@ input { user-select: text; -webkit-user-select: text; }
     <div class="win95-btn-group">
       <button class="win95-button" id="generateBtn">Сгенерировать</button>
       <button class="win95-button" id="copyBtn">Скопировать</button>
-      <button class="win95-button" id="saveBtn">В папку</button>
+      <button class="win95-button" id="saveBtn">В сейф</button>
     </div>
   </div>
   <div class="win95-statusbar">
     <div class="win95-statusbar-field" id="strengthField">Готово</div>
-    <div class="win95-statusbar-field">v3.0</div>
+    <div class="win95-statusbar-field">v3.1</div>
   </div>
 </div>
 </div>
@@ -975,7 +1065,7 @@ input { user-select: text; -webkit-user-select: text; }
     <button class="task-btn start-btn" id="startBtn">🔑 Пуск</button>
     <div class="menu-popup start-menu">
       <div class="menu-item" data-action="restore">🔐 Password Generator</div>
-      <div class="menu-item" data-action="vault">📁 Мои пароли</div>
+      <div class="menu-item" data-action="vault">🔐 Сейф</div>
       <div class="menu-item" data-action="sound">Звук</div>
       <div class="menu-item" data-action="helper">Помощник</div>
       <div class="menu-item" data-action="about">❓ О программе...</div>
@@ -999,7 +1089,7 @@ input { user-select: text; -webkit-user-select: text; }
       <div class="about-icon">🔐</div>
       <div class="about-text">
         <p><b>Password Generator 95</b></p>
-        <p>Версия 3.0</p>
+        <p>Версия 3.1</p>
         <p>Пароли создаются на этом устройстве и никуда не отправляются.</p>
         <div class="about-line"></div>
         <p>Физической памяти свободно: 640 КБ</p>
@@ -1045,31 +1135,74 @@ input { user-select: text; -webkit-user-select: text; }
 <div class="modal" id="vaultWin">
   <div class="win95-window explorer">
     <div class="win95-titlebar">
-      <span>📁 Мои пароли</span>
+      <span>🔐 Сейф</span>
       <div class="win95-titlebar-buttons">
         <span class="win95-btn-sm" id="vwClose" role="button" aria-label="Закрыть">✕</span>
       </div>
     </div>
-    <div class="ex-toolbar">
-      <button class="ex-tool" data-vw="lock">🔒 Запереть</button>
-      <button class="ex-tool" data-vw="export">💾 Экспорт</button>
-      <button class="ex-tool" data-vw="import">📂 Импорт</button>
-      <button class="ex-tool" data-vw="rekey" id="vwRekey">🔑 Сменить узор</button>
-      <button class="ex-tool" data-vw="bio" id="vwBio" style="display:none">👆 Отпечаток</button>
+    <div class="menubar">
+      <div class="menubar-item" data-menu><span>Файл</span>
+        <div class="menu-popup">
+          <div class="menu-item" data-action="vNewPwd">Новый пароль</div>
+          <div class="menu-item" data-action="vNewNote">Новая заметка</div>
+          <div class="menu-sep"></div>
+          <div class="menu-item" data-action="vNewFolder">Новая папка...</div>
+          <div class="menu-item" data-action="vRenameFolder">Переименовать папку...</div>
+          <div class="menu-item" data-action="vDeleteFolder">Удалить папку...</div>
+          <div class="menu-sep"></div>
+          <div class="menu-item" data-action="vExport">Экспорт...</div>
+          <div class="menu-item" data-action="vImport">Импорт...</div>
+          <div class="menu-sep"></div>
+          <div class="menu-item" data-action="vLock">Запереть сейф</div>
+        </div>
+      </div>
+      <div class="menubar-item" data-menu><span>Сервис</span>
+        <div class="menu-popup">
+          <div class="menu-item" data-action="vScan">ScanDisk...</div>
+          <div class="menu-item" data-action="vRekey" id="vwRekey">Сменить узор...</div>
+          <div class="menu-item" data-action="vBio" id="vwBio">Вход по отпечатку</div>
+        </div>
+      </div>
     </div>
-    <div class="ex-addr">Адрес: C:\Мои документы\Пароли</div>
-    <div class="ex-list" id="vwList"></div>
-    <div class="ex-actions">
-      <button class="win95-button" data-vw="show">Показать</button>
-      <button class="win95-button" data-vw="copy">Копировать</button>
-      <button class="win95-button" data-vw="rename">Имя...</button>
-      <button class="win95-button" data-vw="delete">Удалить</button>
+    <div class="ex-toolbar">
+      <button class="ex-tool" data-vw="newpwd">🔑 Пароль</button>
+      <button class="ex-tool" data-vw="newnote">📝 Заметка</button>
+      <button class="ex-tool" data-vw="scan">🩺 ScanDisk</button>
+      <button class="ex-tool" data-vw="lock">🔒 Запереть</button>
+    </div>
+    <div class="ex-search">
+      <select class="ex-input ex-folder-select" id="vwFolderSel" aria-label="Папка"></select>
+      <input class="ex-input" id="vwSearch" type="search" placeholder="Поиск: название, логин, сайт, заметка" autocomplete="off" aria-label="Поиск">
+    </div>
+    <div class="ex-main" id="vwMain">
+      <div class="ex-pane ex-tree" id="vwTree"></div>
+      <div class="ex-pane ex-list" id="vwList"></div>
+      <div class="ex-pane ex-details" id="vwDetails"></div>
     </div>
     <div class="win95-statusbar">
       <div class="win95-statusbar-field" id="vwStatus">0 объектов</div>
-      <div class="win95-statusbar-field">🔓 Открыто</div>
+      <div class="win95-statusbar-field" id="vwSaved">🔓 Открыто</div>
     </div>
     <input type="file" id="vwFile" accept=".json,application/json" hidden>
+  </div>
+</div>
+
+<div class="modal" id="scanWin">
+  <div class="win95-window scan">
+    <div class="win95-titlebar">
+      <span>🩺 ScanDisk — Сейф</span>
+      <div class="win95-titlebar-buttons">
+        <span class="win95-btn-sm" id="sdX" role="button" aria-label="Закрыть">✕</span>
+      </div>
+    </div>
+    <div class="sd-body">
+      <div class="sd-head"><div class="sd-ico">🔍</div><div id="sdText">Проверка паролей…</div></div>
+      <div class="sd-bar" id="sdBar"><div class="sd-fill" id="sdFill"></div></div>
+      <div class="sd-results" id="sdResults" hidden></div>
+      <div class="win95-btn-group" style="margin:0">
+        <button class="win95-button" id="sdClose">Закрыть</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1951,7 +2084,7 @@ const Native = (function () {
   };
 })();
 
-// ---------- Сейф «Мои пароли» ----------
+// ---------- Сейф ----------
 // Как устроена защита:
 //  • пароли шифруются случайным ключом данных (AES-256-GCM);
 //  • ключ данных заперт ключом из узора или пароля, полученным через scrypt;
@@ -1975,6 +2108,7 @@ const Vault = (function () {
   let dekRaw = null;     // он же в байтах — нужен, чтобы сменить узор или включить отпечаток
   let meta = null;       // { mode, kdf, wrap, wrapBio }
   let items = [];
+  let folders = [];      // папки внутри сейфа
   let selected = null;
   const revealed = new Set();
   let pending = null;    // кто ждёт открытия сейфа
@@ -2027,7 +2161,7 @@ const Vault = (function () {
       localStorage.setItem(STORE, JSON.stringify(rec));
       return true;
     } catch (e) {
-      Dialog.ask({ title: 'Ошибка', icon: '⛔', text: 'Не удалось сохранить папку: в памяти нет места или доступ запрещён.', cancel: null });
+      Dialog.ask({ title: 'Ошибка', icon: '⛔', text: 'Не удалось сохранить сейф: в памяти нет места или доступ запрещён.', cancel: null });
       return false;
     }
   }
@@ -2084,20 +2218,39 @@ const Vault = (function () {
   }
 
   async function persist() {
-    const box = await seal(key, enc.encode(JSON.stringify({ items })));
-    const rec = { app: 'pg95-vault', v: 2, mode: meta.mode, kdf: meta.kdf, iv: box.iv, ct: box.ct };
-    const dev = Native.devEncrypt(JSON.stringify(meta.wrap));
-    if (dev) rec.wrapDev = dev; else rec.wrap = meta.wrap;
-    if (meta.wrapBio) rec.wrapBio = meta.wrapBio;
+    // снимок состояния: сохранение доходит до конца, даже если сейф заперли в процессе
+    const k = key, m = meta;
+    const payload = JSON.stringify({ items, folders });
+    const box = await seal(k, enc.encode(payload));
+    const rec = { app: 'pg95-vault', v: 2, mode: m.mode, kdf: m.kdf, iv: box.iv, ct: box.ct };
+    const dev = Native.devEncrypt(JSON.stringify(m.wrap));
+    if (dev) rec.wrapDev = dev; else rec.wrap = m.wrap;
+    if (m.wrapBio) rec.wrapBio = m.wrapBio;
     return save(rec);
   }
+
+  const DEFAULT_FOLDERS = ['Почта', 'Банки', 'Соцсети', 'Работа'];
+
+  // привести записи к одному виду (старые записи — только название и пароль)
+  function normItem(it) {
+    const x = Object.assign({ type: 'password', name: 'Без названия', pwd: '', login: '', url: '', note: '', text: '', folder: '', prev: '' }, it);
+    x.id = String(x.id || newId());
+    x.t = x.t || Date.now();
+    x.mt = x.mt || x.t;
+    return x;
+  }
+  function loadData(data) {
+    items = (Array.isArray(data.items) ? data.items : []).filter(i => i && typeof i === 'object').map(normItem);
+    folders = Array.isArray(data.folders) ? data.folders.filter(f => typeof f === 'string' && f) : DEFAULT_FOLDERS.slice();
+  }
+  const newId = () => Date.now().toString(36) + randomInt(1e9).toString(36);
 
   async function openWithDek(raw, rec, wrap) {
     const k = await aesKey(raw);
     const data = JSON.parse(dec.decode(await unseal(k, rec)));
     key = k;
     dekRaw = raw;
-    items = Array.isArray(data.items) ? data.items : [];
+    loadData(data);
     meta = { mode: rec.mode, kdf: rec.kdf, wrap, wrapBio: rec.wrapBio || null };
   }
 
@@ -2113,7 +2266,7 @@ const Vault = (function () {
     const data = JSON.parse(dec.decode(await unseal(await kekV1(secret, unb64(rec.salt), rec.iter), rec)));
     dekRaw = rand(32);
     key = await aesKey(dekRaw);
-    items = Array.isArray(data.items) ? data.items : [];
+    loadData(data);
     meta = Object.assign({ mode: rec.mode, wrapBio: null }, await newWrap(secret));
     await persist();
   }
@@ -2271,7 +2424,7 @@ const Vault = (function () {
         } else {
           dekRaw = rand(32);
           key = await aesKey(dekRaw);
-          items = [];
+          loadData({ items: [] });
           meta = Object.assign({ mode: kind, wrapBio: null }, await newWrap(secret));
         }
         if (!(await persist())) throw new Error('save');
@@ -2498,111 +2651,502 @@ const Vault = (function () {
     status('Сейф стёрт. Создайте новый узор', 'err');
   });
 
-  // ================= Проводник =================
+  // ================= Окно сейфа =================
+  const main = $('vwMain'), tree = $('vwTree'), details = $('vwDetails');
+  const searchEl = $('vwSearch'), folderSel = $('vwFolderSel'), savedEl = $('vwSaved');
+  let curFolder = '*';       // '*' — все записи, '#notes' — Блокнот, '' — без папки, иначе имя папки
+  let query = '';
+  let saveTimer = null;
+  let dirty = false;
+
   function plural(n) {
     const a = n % 10, b = n % 100;
     if (a === 1 && b !== 11) return n + ' объект';
     if (a >= 2 && a <= 4 && (b < 12 || b > 14)) return n + ' объекта';
     return n + ' объектов';
   }
-
   function fmtDate(t) {
     const d = new Date(t);
     const p = x => String(x).padStart(2, '0');
     return p(d.getDate()) + '.' + p(d.getMonth() + 1) + '.' + String(d.getFullYear()).slice(2);
   }
+  const el = (tag, cls, text) => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  };
+  const isRealFolder = f => f !== '*' && f !== '#notes' && f !== '';
+  const current = () => items.find(i => i.id === selected);
+
+  // оценка пароля: длина × log2(набор символов)
+  function bitsOf(p) {
+    let pool = 0;
+    if (/[a-z]/.test(p)) pool += 26;
+    if (/[A-Z]/.test(p)) pool += 26;
+    if (/[0-9]/.test(p)) pool += 10;
+    if (/[^a-zA-Z0-9]/.test(p)) pool += 33;
+    return pool ? Math.round(p.length * Math.log2(pool)) : 0;
+  }
+  function strengthText(p) {
+    const b = bitsOf(p);
+    const s = b >= 100 ? 'Очень сильный' : b >= 72 ? 'Сильный' : b >= 50 ? 'Средний' : 'Слабый';
+    return 'Надёжность: ' + s + ' (' + b + ' бит)';
+  }
+
+  // пароль по настройкам главного окна
+  function genFromSettings() {
+    const sets = [['upper', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'], ['lower', 'abcdefghijklmnopqrstuvwxyz'],
+      ['digits', '0123456789'], ['symbols', '!@#$%^&*()-_=+[]{};:,.?']];
+    let on = sets.filter(([id]) => document.getElementById(id).checked);
+    if (!on.length) on = sets;
+    const len = Math.max(parseInt(slider.value) || 16, on.length);
+    const all = on.map(s => s[1]).join('');
+    let p = on.map(s => randomFrom(s[1])).join('');
+    while (p.length < len) p += randomFrom(all);
+    return shuffle(p);
+  }
+
+  // --- сохранение с задержкой ---
+  function markDirty() {
+    dirty = true;
+    savedEl.textContent = '✏️ Изменено';
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(flushSave, 700);
+  }
+  async function flushSave() {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    if (!dirty || !key) return;
+    dirty = false;
+    savedEl.textContent = '💾 Сохранение…';
+    const ok = await persist();
+    if (key) savedEl.textContent = ok ? '💾 Сохранено' : '⛔ Не сохранено';
+  }
+
+  // --- что видно в списке ---
+  function inFolder(it) {
+    if (curFolder === '*') return true;
+    if (curFolder === '#notes') return it.type === 'note';
+    return it.folder === curFolder;
+  }
+  function matches(it) {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return [it.name, it.login, it.url, it.note, it.type === 'note' ? it.text : ''].join('\n').toLowerCase().includes(q);
+  }
+  const visible = () => items.filter(it => inFolder(it) && matches(it))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+
+  function folderNodes() {
+    const nodes = [['*', '📂 Все записи', items.length]];
+    folders.forEach(f => nodes.push([f, '📁 ' + f, items.filter(i => i.folder === f).length]));
+    const loose = items.filter(i => !i.folder || !folders.includes(i.folder)).length;
+    if (loose) nodes.push(['', '📁 Без папки', loose]);
+    nodes.push(['#notes', '📝 Блокнот', items.filter(i => i.type === 'note').length]);
+    return nodes;
+  }
+
+  function renderTree() {
+    // записи из удалённых папок считаем «без папки»
+    items.forEach(i => { if (i.folder && !folders.includes(i.folder)) i.folder = ''; });
+    const nodes = folderNodes();
+    if (!nodes.some(n => n[0] === curFolder)) curFolder = '*';
+    tree.innerHTML = '';
+    folderSel.innerHTML = '';
+    nodes.forEach(([id, label, n]) => {
+      const node = el('div', 'ex-node' + (id === curFolder ? ' sel' : ''));
+      node.dataset.folder = id;
+      node.append(el('span', '', label), el('span', 'cnt', String(n)));
+      tree.appendChild(node);
+      const opt = el('option', '', label + ' (' + n + ')');
+      opt.value = id;
+      opt.selected = id === curFolder;
+      folderSel.appendChild(opt);
+    });
+  }
 
   function renderList() {
     list.innerHTML = '';
-    if (!items.length) {
-      const e = document.createElement('div');
-      e.className = 'ex-empty';
-      e.textContent = 'Папка пуста. Создайте пароль и нажмите «В папку» в главном окне.';
-      list.appendChild(e);
+    const v = visible();
+    if (!v.length) {
+      list.appendChild(el('div', 'ex-empty', !items.length
+        ? 'Сейф пуст. Нажмите «🔑 Пароль» или «📝 Заметка», чтобы добавить первую запись, или «В сейф» в главном окне.'
+        : query ? 'Ничего не найдено.' : 'В этой папке пока пусто.'));
     }
-    items.forEach(it => {
-      const row = document.createElement('div');
-      row.className = 'ex-row' + (it.id === selected ? ' sel' : '');
+    v.forEach(it => {
+      const row = el('div', 'ex-row' + (it.id === selected ? ' sel' : ''));
       row.dataset.id = it.id;
-      const ico = document.createElement('span'); ico.className = 'ex-ico'; ico.textContent = '🔑';
-      const name = document.createElement('span'); name.className = 'ex-name'; name.textContent = it.name;
-      const date = document.createElement('span'); date.className = 'ex-date'; date.textContent = fmtDate(it.t);
-      const pwd = document.createElement('span'); pwd.className = 'ex-pwd';
-      pwd.textContent = revealed.has(it.id) ? it.pwd : '••••••••••';
-      row.append(ico, name, date, pwd);
+      const sub = it.type === 'note'
+        ? (it.text.split('\n').find(s => s.trim()) || 'Пустая заметка')
+        : (it.login || it.url || 'логин не указан');
+      row.append(el('span', 'ex-ico', it.type === 'note' ? '📝' : '🔑'), el('span', 'ex-name', it.name),
+        el('span', 'ex-date', fmtDate(it.mt)), el('span', 'ex-sub', sub));
       list.appendChild(row);
     });
-    vwStatus.textContent = plural(items.length);
-    const has = items.some(i => i.id === selected);
-    win.querySelectorAll('.ex-actions .win95-button').forEach(b => { b.disabled = !has; });
-    win.querySelector('[data-vw="show"]').textContent = has && revealed.has(selected) ? 'Скрыть' : 'Показать';
-    $('vwRekey').textContent = meta && meta.mode === 'text' ? '🔑 Сменить пароль' : '🔑 Сменить узор';
-    const bioOk = Native.bioAvailable();
-    $('vwBio').style.display = bioOk ? '' : 'none';
-    $('vwBio').textContent = '👆 Отпечаток: ' + (meta && meta.wrapBio ? 'вкл' : 'выкл');
+    $('vwStatus').textContent = plural(v.length) + (v.length !== items.length ? ' из ' + items.length : '');
+    $('vwRekey').textContent = meta && meta.mode === 'text' ? 'Сменить пароль сейфа...' : 'Сменить узор...';
+    const bio = $('vwBio');
+    bio.style.display = Native.bioAvailable() ? '' : 'none';
+    bio.textContent = (meta && meta.wrapBio ? '✓ ' : '') + 'Вход по отпечатку';
+  }
+
+  function folderSelect(value) {
+    const s = el('select', 'ex-input');
+    s.id = 'vdFolder';
+    [['', 'Без папки']].concat(folders.map(f => [f, f])).forEach(([v, t]) => {
+      const o = el('option', '', t);
+      o.value = v;
+      o.selected = v === value;
+      s.appendChild(o);
+    });
+    return s;
+  }
+  function field(labelText, control, buttons) {
+    const f = el('div', 'ex-field');
+    const l = el('label', '', labelText);
+    if (control.id) l.htmlFor = control.id;
+    const row = el('div', 'ex-irow');
+    row.append(control, ...(buttons || []));
+    f.append(l, row);
+    return f;
+  }
+  function input(id, value, cls, type) {
+    const i = el('input', 'ex-input' + (cls ? ' ' + cls : ''));
+    i.id = id;
+    i.type = type || 'text';
+    i.value = value;
+    i.autocomplete = 'off';
+    i.spellcheck = false;
+    return i;
+  }
+  function miniBtn(label, title, fn) {
+    const b = el('button', 'ex-mini', label);
+    b.type = 'button';
+    b.title = title;
+    b.setAttribute('aria-label', title);
+    b.addEventListener('click', fn);
+    return b;
+  }
+  async function copyField(text, what) {
+    if (!text) return;
+    const ok = await copyText(text);
+    if (ok) Sound.ding(); else Sound.error();
+    savedEl.textContent = ok ? '📋 ' + what + ' скопирован' : '⛔ Не удалось скопировать';
+  }
+
+  function renderDetails() {
+    details.innerHTML = '';
+    const it = current();
+    if (!it) {
+      details.appendChild(el('div', 'ex-placeholder', items.length ? 'Выберите запись в списке, чтобы посмотреть и изменить её.' : 'Здесь появятся подробности записи.'));
+      main.classList.remove('detail');
+      return;
+    }
+    const back = miniBtn('←', 'Назад к списку', () => { main.classList.remove('detail'); });
+    back.classList.add('ex-back');
+    const name = input('vdName', it.name);
+    name.addEventListener('input', () => { it.name = name.value; markDirty(); updateRow(it); });
+    const head = el('div', 'ex-dhead');
+    head.append(back, el('span', 'ex-dico', it.type === 'note' ? '📝' : '🔑'), name);
+    details.append(head);
+
+    const fsel = folderSelect(it.folder);
+    fsel.addEventListener('change', () => { it.folder = fsel.value; markDirty(); renderTree(); renderList(); });
+    details.append(field('Папка', fsel));
+
+    if (it.type === 'note') {
+      const ta = el('textarea', 'ex-input ex-notepad');
+      ta.id = 'vdText';
+      ta.value = it.text;
+      ta.spellcheck = false;
+      ta.placeholder = 'Ответы на секретные вопросы, коды восстановления, номер полиса, PIN от домофона…';
+      ta.addEventListener('input', () => { it.text = ta.value; it.mt = Date.now(); markDirty(); updateRow(it); });
+      const f = el('div', 'ex-field');
+      f.style.flex = '1';
+      f.style.display = 'flex';
+      f.style.flexDirection = 'column';
+      const l = el('label', '', 'Текст заметки');
+      l.htmlFor = 'vdText';
+      f.append(l, ta);
+      details.append(f);
+    } else {
+      const login = input('vdLogin', it.login);
+      login.addEventListener('input', () => { it.login = login.value; markDirty(); updateRow(it); });
+      details.append(field('Логин', login, [miniBtn('📋', 'Скопировать логин', () => copyField(it.login, 'Логин'))]));
+
+      const url = input('vdUrl', it.url);
+      url.placeholder = 'например, mail.ru';
+      url.addEventListener('input', () => { it.url = url.value; markDirty(); updateRow(it); });
+      details.append(field('Сайт', url, [miniBtn('📋', 'Скопировать адрес', () => copyField(it.url, 'Адрес'))]));
+
+      const pwd = input('vdPwd', it.pwd, 'mono', 'password');
+      const hint = el('div', 'ex-hint', strengthText(it.pwd));
+      let original = it.pwd;
+      pwd.addEventListener('input', () => { it.pwd = pwd.value; hint.textContent = strengthText(it.pwd); markDirty(); });
+      pwd.addEventListener('change', () => {
+        if (it.pwd !== original) { it.prev = original; it.mt = Date.now(); original = it.pwd; markDirty(); renderDetails(); }
+      });
+      const eye = miniBtn('👁', 'Показать пароль', () => {
+        pwd.type = pwd.type === 'password' ? 'text' : 'password';
+      });
+      const gen = miniBtn('🎲', 'Заменить новым паролем', async () => {
+        const ok = await Dialog.ask({ title: 'Новый пароль', icon: '🎲', ok: 'Заменить', cancel: 'Отмена',
+          text: 'Заменить пароль «' + it.name + '» новым? Старый сохранится в поле «Прежний пароль» — на случай, если на сайте его ещё не поменяли.' });
+        if (!ok || !key) return;
+        it.prev = it.pwd;
+        it.pwd = genFromSettings();
+        it.mt = Date.now();
+        markDirty();
+        renderDetails();
+        renderList();
+        Sound.granted();
+      });
+      const pf = field('Пароль', pwd, [eye, miniBtn('📋', 'Скопировать пароль', () => copyField(it.pwd, 'Пароль')), gen]);
+      pf.append(hint);
+      details.append(pf);
+
+      if (it.prev) {
+        const pv = input('vdPrev', it.prev, 'mono', 'password');
+        pv.readOnly = true;
+        details.append(field('Прежний пароль', pv, [
+          miniBtn('👁', 'Показать прежний пароль', () => { pv.type = pv.type === 'password' ? 'text' : 'password'; }),
+          miniBtn('📋', 'Скопировать прежний пароль', () => copyField(it.prev, 'Прежний пароль')),
+          miniBtn('✕', 'Забыть прежний пароль', () => { it.prev = ''; markDirty(); renderDetails(); })
+        ]));
+      }
+
+      const note = el('textarea', 'ex-input');
+      note.id = 'vdNote';
+      note.rows = 3;
+      note.value = it.note;
+      note.style.resize = 'vertical';
+      note.addEventListener('input', () => { it.note = note.value; markDirty(); });
+      const nf = el('div', 'ex-field');
+      const nl = el('label', '', 'Заметка');
+      nl.htmlFor = 'vdNote';
+      nf.append(nl, note);
+      details.append(nf);
+    }
+
+    details.append(el('div', 'ex-meta', 'Создано: ' + fmtDate(it.t) + ' · ' +
+      (it.type === 'note' ? 'Изменено: ' : 'Пароль изменён: ') + fmtDate(it.mt)));
+    const del = el('button', 'win95-button', 'Удалить запись');
+    del.type = 'button';
+    del.addEventListener('click', () => deleteItem(it));
+    const acts = el('div', 'ex-dactions');
+    acts.append(del);
+    details.append(acts);
+  }
+
+  // обновить одну строку списка, не трогая поле, в котором печатают
+  function updateRow(it) {
+    const row = list.querySelector('.ex-row[data-id="' + CSS.escape(it.id) + '"]');
+    if (!row) return;
+    row.querySelector('.ex-name').textContent = it.name;
+    row.querySelector('.ex-date').textContent = fmtDate(it.mt);
+    row.querySelector('.ex-sub').textContent = it.type === 'note'
+      ? (it.text.split('\n').find(s => s.trim()) || 'Пустая заметка')
+      : (it.login || it.url || 'логин не указан');
+  }
+
+  function renderAll() {
+    renderTree();
+    renderList();
+    renderDetails();
   }
 
   function showExplorer() {
-    renderList();
+    renderAll();
     win.classList.add('show');
     const row = list.querySelector('.ex-row.sel');
     if (row) row.scrollIntoView({ block: 'nearest' });
   }
 
-  list.addEventListener('click', e => {
-    const row = e.target.closest('.ex-row');
-    if (!row) return;
-    selected = row.dataset.id;
+  function select(id, openDetail) {
+    selected = id;
+    renderList();
+    renderDetails();
+    if (openDetail) main.classList.add('detail');
+  }
+
+  tree.addEventListener('click', e => {
+    const n = e.target.closest('.ex-node');
+    if (!n) return;
+    curFolder = n.dataset.folder;
+    renderTree();
     renderList();
   });
+  folderSel.addEventListener('change', () => { curFolder = folderSel.value; renderTree(); renderList(); });
+  searchEl.addEventListener('input', () => { query = searchEl.value; renderList(); });
+  list.addEventListener('click', e => {
+    const row = e.target.closest('.ex-row');
+    if (row) select(row.dataset.id, true);
+  });
 
-  const current = () => items.find(i => i.id === selected);
+  // --- записи ---
+  async function addItem(type) {
+    await flushSave();
+    const it = normItem({
+      id: newId(), type,
+      name: type === 'note' ? 'Новая заметка' : 'Новая запись',
+      pwd: type === 'note' ? '' : genFromSettings(),
+      folder: isRealFolder(curFolder) ? curFolder : '',
+      t: Date.now()
+    });
+    items.push(it);
+    if (curFolder !== '*' && !(curFolder === '#notes' && type === 'note') && curFolder !== it.folder) curFolder = '*';
+    query = '';
+    searchEl.value = '';
+    if (!(await persist())) { items.pop(); return; }
+    Sound.click();
+    renderTree();
+    select(it.id, true);
+    const n = $('vdName');
+    if (n) { n.focus(); n.select(); }
+  }
 
-  async function vwAction(a) {
-    const it = current();
-    if (a === 'lock') { lock(); Sound.shutdown(); return; }
-    if (a === 'export') return exportVault();
-    if (a === 'import') { fileInput.value = ''; fileInput.click(); return; }
-    if (a === 'rekey') {
-      rekey = true;
-      kind = meta.mode;
-      step = 'setup1';
-      firstSecret = null;
-      win.classList.remove('show');
-      lockEl.classList.remove('leaving');
-      lockEl.classList.add('show');
-      render();
+  async function deleteItem(it) {
+    const ok = await Dialog.ask({ title: 'Удаление', icon: '⚠️', ok: 'Да', cancel: 'Нет',
+      text: 'Удалить «' + it.name + '»? Восстановить запись будет нельзя.' });
+    if (!ok || !key) return;
+    items = items.filter(i => i.id !== it.id);
+    selected = null;
+    main.classList.remove('detail');
+    await persist();
+    Sound.click();
+    renderAll();
+  }
+
+  // --- папки ---
+  async function newFolder() {
+    const v = await Dialog.ask({ title: 'Новая папка', icon: '📁', text: 'Название папки:', input: '' });
+    if (v === null || !key) return;
+    const name = v.trim().slice(0, 30);
+    if (!name) return;
+    if (folders.includes(name)) { Dialog.ask({ title: 'Новая папка', icon: 'ℹ️', cancel: null, text: 'Папка «' + name + '» уже есть.' }); return; }
+    folders.push(name);
+    curFolder = name;
+    await persist();
+    renderAll();
+  }
+  async function renameFolder() {
+    if (!isRealFolder(curFolder)) { Dialog.ask({ title: 'Папки', icon: 'ℹ️', cancel: null, text: 'Сначала выберите папку слева.' }); return; }
+    const old = curFolder;
+    const v = await Dialog.ask({ title: 'Переименование папки', icon: '📁', text: 'Новое название:', input: old });
+    if (v === null || !key) return;
+    const name = v.trim().slice(0, 30);
+    if (!name || name === old) return;
+    if (folders.includes(name)) { Dialog.ask({ title: 'Папки', icon: 'ℹ️', cancel: null, text: 'Папка «' + name + '» уже есть.' }); return; }
+    folders[folders.indexOf(old)] = name;
+    items.forEach(i => { if (i.folder === old) i.folder = name; });
+    curFolder = name;
+    await persist();
+    renderAll();
+  }
+  async function deleteFolder() {
+    if (!isRealFolder(curFolder)) { Dialog.ask({ title: 'Папки', icon: 'ℹ️', cancel: null, text: 'Сначала выберите папку слева.' }); return; }
+    const f = curFolder;
+    const ok = await Dialog.ask({ title: 'Удаление папки', icon: '⚠️', ok: 'Удалить', cancel: 'Отмена',
+      text: 'Удалить папку «' + f + '»? Записи из неё не пропадут, а переместятся в «Без папки».' });
+    if (!ok || !key) return;
+    folders = folders.filter(x => x !== f);
+    items.forEach(i => { if (i.folder === f) i.folder = ''; });
+    curFolder = '*';
+    await persist();
+    renderAll();
+  }
+
+  // --- ScanDisk ---
+  const scanWin = $('scanWin'), sdText = $('sdText'), sdFill = $('sdFill'), sdResults = $('sdResults');
+  let scanRun = 0;
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  function findIssues() {
+    const pw = items.filter(i => i.type !== 'note');
+    const issues = new Map();
+    const add = (it, text) => { if (!issues.has(it.id)) issues.set(it.id, { it, reasons: [] }); issues.get(it.id).reasons.push(text); };
+    const YEAR = 365 * 24 * 3600 * 1000;
+    const byPwd = new Map();
+    pw.forEach(it => {
+      if (!it.pwd) { add(it, 'Пароль не заполнен'); return; }
+      const b = bitsOf(it.pwd);
+      if (b < 60) add(it, 'Слабый пароль (' + b + ' бит) — замените кнопкой 🎲');
+      if (!byPwd.has(it.pwd)) byPwd.set(it.pwd, []);
+      byPwd.get(it.pwd).push(it);
+      if (Date.now() - it.mt > YEAR) add(it, 'Не менялся больше года (с ' + fmtDate(it.mt) + ')');
+    });
+    byPwd.forEach(group => {
+      if (group.length < 2) return;
+      group.forEach(it => add(it, 'Такой же пароль у: ' + group.filter(g => g !== it).map(g => g.name).join(', ')));
+    });
+    return { checked: pw.length, list: Array.from(issues.values()) };
+  }
+
+  async function scan() {
+    await flushSave();
+    const run = ++scanRun;
+    const pw = items.filter(i => i.type !== 'note');
+    sdResults.hidden = true;
+    sdResults.innerHTML = '';
+    sdFill.style.width = '0';
+    $('sdBar').hidden = false;
+    scanWin.classList.add('show');
+    const steps = Math.max(pw.length, 12);
+    for (let s = 1; s <= steps; s++) {
+      if (run !== scanRun || !key) return;
+      const it = pw[(s - 1) % Math.max(pw.length, 1)];
+      sdText.textContent = 'Проверка: ' + (it ? it.name : 'сейф') + '…';
+      sdFill.style.width = Math.round(s / steps * 100) + '%';
+      await sleep(Math.max(40, Math.min(160, 2200 / steps)));
+    }
+    if (run !== scanRun || !key) return;
+    const r = findIssues();
+    $('sdBar').hidden = true;
+    sdResults.hidden = false;
+    if (!r.list.length) {
+      sdText.textContent = 'Проверено паролей: ' + r.checked + '. Проблем не найдено.';
+      sdResults.appendChild(el('div', 'sd-ok', r.checked ? '✅ Все пароли надёжные, не повторяются и не устарели.' : 'В сейфе пока нет паролей для проверки.'));
+      Sound.granted();
       return;
     }
-    if (a === 'bio') return toggleBio();
-    if (!it) return;
-    if (a === 'show') {
-      if (revealed.has(it.id)) revealed.delete(it.id); else revealed.add(it.id);
-      renderList();
-    } else if (a === 'copy') {
-      const ok = await copyText(it.pwd);
-      if (ok) Sound.ding(); else Sound.error();
-      vwStatus.textContent = ok ? 'Скопировано: ' + it.name : 'Не удалось скопировать';
-      setTimeout(() => { if (key) vwStatus.textContent = plural(items.length); }, 1800);
-    } else if (a === 'rename') {
-      const v = await Dialog.ask({ title: 'Переименование', icon: '✏️', text: 'Новое название:', input: it.name });
-      if (v === null || !key) return;
-      it.name = v.trim() || it.name;
-      await persist();
-      renderList();
-    } else if (a === 'delete') {
-      const ok = await Dialog.ask({ title: 'Удаление', icon: '⚠️', text: 'Удалить «' + it.name + '»? Восстановить пароль будет нельзя.', ok: 'Да', cancel: 'Нет' });
-      if (!ok || !key) return;
-      items = items.filter(i => i.id !== it.id);
-      revealed.delete(it.id);
-      selected = null;
-      await persist();
-      Sound.click();
-      renderList();
-    }
+    sdText.textContent = 'Проверено паролей: ' + r.checked + '. Требуют внимания: ' + r.list.length + '. Нажмите на запись, чтобы открыть её.';
+    r.list.forEach(({ it, reasons }) => {
+      const row = el('div', 'sd-item');
+      row.append(el('b', '', '⚠️ ' + it.name));
+      reasons.forEach(t => row.append(el('span', '', '• ' + t)));
+      row.addEventListener('click', () => {
+        scanWin.classList.remove('show');
+        curFolder = '*';
+        query = '';
+        searchEl.value = '';
+        renderTree();
+        select(it.id, true);
+      });
+      sdResults.appendChild(row);
+    });
+    Sound.error();
+  }
+  const closeScan = () => { scanRun++; scanWin.classList.remove('show'); };
+  $('sdClose').addEventListener('click', closeScan);
+  $('sdX').addEventListener('click', closeScan);
+
+  // --- смена узора и отпечаток ---
+  async function startRekey() {
+    await flushSave();
+    rekey = true;
+    kind = meta.mode;
+    step = 'setup1';
+    firstSecret = null;
+    win.classList.remove('show');
+    lockEl.classList.remove('leaving');
+    lockEl.classList.add('show');
+    render();
   }
 
   async function toggleBio() {
+    if (!Native.bioAvailable()) return;
+    await flushSave();
     if (meta.wrapBio) {
       const ok = await Dialog.ask({ title: 'Отпечаток', icon: '👆', ok: 'Выключить', cancel: 'Отмена', text: 'Выключить вход по отпечатку? Сейф будет открываться только узором.' });
       if (!ok || !key) return;
@@ -2631,14 +3175,50 @@ const Vault = (function () {
     });
   }
 
+  function closeExplorer() {
+    flushSave();
+    win.classList.remove('show');
+    main.classList.remove('detail');
+  }
+
+  const vwActions = {
+    newpwd: () => addItem('password'),
+    newnote: () => addItem('note'),
+    scan,
+    lock: () => { lock(); Sound.shutdown(); }
+  };
   win.addEventListener('click', e => {
     const b = e.target.closest('[data-vw]');
-    if (b && !b.disabled) vwAction(b.dataset.vw);
+    if (b && !b.disabled && vwActions[b.dataset.vw]) vwActions[b.dataset.vw]();
   });
-  $('vwClose').addEventListener('click', () => { win.classList.remove('show'); revealed.clear(); });
+  $('vwClose').addEventListener('click', closeExplorer);
+
+  // пункты меню окна сейфа (их вызывает общий обработчик меню)
+  Object.assign(actions, {
+    vNewPwd: () => addItem('password'),
+    vNewNote: () => addItem('note'),
+    vNewFolder: newFolder,
+    vRenameFolder: renameFolder,
+    vDeleteFolder: deleteFolder,
+    vExport: () => exportVault(),
+    vImport: () => { fileInput.value = ''; fileInput.click(); },
+    vLock: () => { lock(); Sound.shutdown(); },
+    vScan: scan,
+    vRekey: startRekey,
+    vBio: toggleBio
+  });
+
+  // кнопка «Назад» на телефоне
+  function back() {
+    if (scanWin.classList.contains('show')) { closeScan(); return; }
+    if (main.classList.contains('detail') && getComputedStyle(details).display !== 'none' &&
+        getComputedStyle(list).display === 'none') { main.classList.remove('detail'); return; }
+    closeExplorer();
+  }
 
   // --- экспорт / импорт ---
-  function exportVault() {
+  async function exportVault() {
+    await flushSave();
     const rec = load();
     if (!rec || !meta || !isBox(meta.wrap)) return;
     // копия не привязана к телефону: открыть её можно только узором или паролем
@@ -2678,12 +3258,12 @@ const Vault = (function () {
       let rec = null;
       try { rec = JSON.parse(reader.result); } catch (e) {}
       if (!valid(rec)) {
-        Dialog.ask({ title: 'Импорт', icon: '⛔', text: 'Это не копия папки «Мои пароли».', cancel: null });
+        Dialog.ask({ title: 'Импорт', icon: '⛔', text: 'Это не копия сейфа PassGen 95.', cancel: null });
         return;
       }
       const ok = await Dialog.ask({
         title: 'Импорт', icon: '⚠️', ok: 'Заменить', cancel: 'Отмена',
-        text: 'Заменить содержимое папки копией из файла? Текущие пароли будут удалены. Открыть копию можно ' +
+        text: 'Заменить содержимое сейфа копией из файла? Текущие записи будут удалены. Открыть копию можно ' +
           (rec.mode === 'text' ? 'паролем' : 'узором') + ', с которым она была сохранена.'
       });
       if (!ok) return;
@@ -2702,13 +3282,22 @@ const Vault = (function () {
 
   // ================= Общее =================
   function lock() {
+    if (dirty && key) { dirty = false; persist(); } // дописать несохранённое
+    clearTimeout(saveTimer);
+    scanRun++;
+    scanWin.classList.remove('show');
+    main.classList.remove('detail');
     if (dekRaw) dekRaw.fill(0);
     dekRaw = null;
     rekey = false;
     key = null;
     meta = null;
     items = [];
+    folders = [];
     selected = null;
+    curFolder = '*';
+    query = '';
+    searchEl.value = '';
     revealed.clear();
     win.classList.remove('show');
     if (Dialog.isOpen()) Dialog.close(null);
@@ -2722,33 +3311,39 @@ const Vault = (function () {
   async function saveCurrent() {
     if (!hasPassword) {
       Sound.error();
-      Helper.say('Сначала создайте пароль кнопкой «Сгенерировать», а потом уже кладите его в папку.');
+      Helper.say('Сначала создайте пароль кнопкой «Сгенерировать», а потом уже кладите его в сейф.');
       return;
     }
     const pwd = result.textContent;
     if (!(await ensureUnlocked())) return;
-    if (items.some(i => i.pwd === pwd)) {
-      selected = items.find(i => i.pwd === pwd).id;
+    const same = items.find(i => i.type !== 'note' && i.pwd === pwd);
+    if (same) {
+      curFolder = '*';
       showExplorer();
-      Dialog.ask({ title: 'Мои пароли', icon: 'ℹ️', text: 'Этот пароль уже лежит в папке.', cancel: null });
+      select(same.id, true);
+      Dialog.ask({ title: 'Сейф', icon: 'ℹ️', text: 'Этот пароль уже лежит в сейфе.', cancel: null });
       return;
     }
-    const name = await Dialog.ask({ title: 'Сохранить в папку', icon: '💾', text: 'Для чего этот пароль? Например: «Почта».', input: 'Пароль ' + (items.length + 1) });
+    const name = await Dialog.ask({ title: 'Сохранить в сейф', icon: '💾', text: 'Для чего этот пароль? Например: «Почта». Логин и сайт можно будет добавить в карточке.', input: 'Пароль ' + (items.length + 1) });
     if (name === null || !key) return;
-    const it = { id: Date.now().toString(36) + randomInt(1e6).toString(36), name: name.trim() || 'Без названия', pwd, t: Date.now() };
+    const it = normItem({ id: newId(), type: 'password', name: name.trim() || 'Без названия', pwd,
+      folder: isRealFolder(curFolder) ? curFolder : '', t: Date.now() });
     items.push(it);
     if (!(await persist())) { items.pop(); return; }
-    selected = it.id;
+    if (curFolder !== '*' && curFolder !== it.folder) curFolder = '*';
     Sound.ding();
     showExplorer();
+    select(it.id, true);
+    const l = $('vdLogin');
+    if (l) l.focus();
   }
 
   document.getElementById('saveBtn').addEventListener('click', saveCurrent);
   document.getElementById('deskVault').addEventListener('click', open);
-  // свернули приложение — сейф запирается
+  // свернули приложение — сейф запирается (несохранённое дописывается)
   document.addEventListener('visibilitychange', () => { if (document.hidden && !bioBusy) lock(); });
 
-  return { open, lock, saveCurrent, isUnlocked: () => !!key };
+  return { open, lock, saveCurrent, back, isUnlocked: () => !!key };
 })();
 
 updateSoundLabels();
@@ -2763,7 +3358,7 @@ window.onAndroidBack = function () {
   if (booting) return true;
   if (Dialog.isOpen()) { Dialog.close(null); return true; }
   if (document.getElementById('vlock').classList.contains('show')) { document.getElementById('vlCancel').click(); return true; }
-  if (document.getElementById('vaultWin').classList.contains('show')) { document.getElementById('vwClose').click(); return true; }
+  if (document.getElementById('vaultWin').classList.contains('show')) { Vault.back(); return true; }
   if (about.classList.contains('show')) { about.classList.remove('show'); return true; }
   if (document.querySelector('[data-menu].open')) { closeMenus(); return true; }
   if (document.getElementById('helperBalloon').classList.contains('show')) { Helper.hideBalloon(); return true; }
