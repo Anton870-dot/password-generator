@@ -1,6 +1,6 @@
 // При каждом обновлении приложения меняйте номер версии
-const CACHE = "passgen-v15";
-const FILES = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png"];
+const CACHE = "passgen-v17";
+const FILES = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./game.js", "./game-art.js"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)));
