@@ -335,6 +335,16 @@
       tone('sine', f * 2.76, f * 2.7, 0.08, 0.06);
       noise(0.02, 'highpass', 6000, 0.12);
     },
+    // лом: свист замаха, удар по телу, звон о стену, добивание, оглушение
+    swing() { noise(0.2, 'bandpass', 700, 0.45, 0, 1.2); noise(0.14, 'bandpass', 1600, 0.2, 0.04, 2); },
+    bash() { noise(0.14, 'lowpass', 650, 1.1); tone('sine', 120, 45, 0.2, 0.8); noise(0.05, 'highpass', 2600, 0.45); noise(0.18, 'bandpass', 400, 0.5, 0.03, 1.5); },
+    clang() { tone('sine', 1180, 1150, 0.5, 0.16); tone('sine', 2730, 2700, 0.32, 0.09); tone('sine', 4100, 4050, 0.18, 0.05); noise(0.04, 'highpass', 4000, 0.4); },
+    finisher() {
+      tone('sawtooth', 85, 28, 0.7, 0.45); noise(0.6, 'lowpass', 380, 0.9, 0.05);
+      noise(0.15, 'bandpass', 1300, 0.7, 0.08, 1.2);
+      for (let i = 0; i < 8; i++) tone('sine', 1600 + rnd() * 2600, 900, 0.25, 0.05, 0.1 + i * 0.04);
+    },
+    stun() { tone('sine', 620, 380, 0.6, 0.06); tone('sine', 660, 400, 0.6, 0.05, 0.1); tone('sawtooth', 110, 80, 0.7, 0.08); },
     // шаги мутантов
     stepTech() { noise(0.09, 'lowpass', 350, 0.5); noise(0.05, 'bandpass', 900, 0.15, 0.02, 2); },
     stepAstro() { tone('sine', 75, 38, 0.18, 0.7); noise(0.12, 'lowpass', 260, 0.6); tone('square', 420, 380, 0.05, 0.05, 0.01); },
@@ -447,10 +457,13 @@
     o: { tex: 'oxygen', upp: 0.009 },
     k: { tex: 'keycard', upp: 0.009 }
   };
+  // клавиши 1, 2, 3 — по порядку
   const WEAPONS = [
-    { name: 'Пистолет Самойлова, 10 мм', short: '10 мм', ammo: 'bullets', cd: 0.34, frames: [['fire', 0.07], ['smoke', 0.22]], sfx: 'pistol', kick: 0.18 },
-    { name: 'Гвардейский дробовик', short: 'дробь', ammo: 'shells', cd: 0.9, frames: [['fire', 0.1], ['idle', 0.14], ['reload', 0.36]], sfx: 'shotgun', kick: 0.5 }
+    { id: 'crowbar', name: 'Монтажный лом', short: '', ammo: null, cd: 0.5, frames: [['raise', 0.1], ['hit', 0.14], ['idle', 0.16]], sfx: 'swing', kick: 0, melee: true },
+    { id: 'pistol', name: 'Пистолет Самойлова, 10 мм', short: '10 мм', ammo: 'bullets', cd: 0.34, frames: [['fire', 0.07], ['smoke', 0.22]], sfx: 'pistol', kick: 0.18 },
+    { id: 'shotgun', name: 'Гвардейский дробовик', short: 'дробь', ammo: 'shells', cd: 0.9, frames: [['fire', 0.1], ['idle', 0.14], ['reload', 0.36]], sfx: 'shotgun', kick: 0.5 }
   ];
+  const wid = () => WEAPONS[G.p.weapon].id;
 
   // ---------- состояние ----------
   let G = null;            // текущая игра
@@ -458,7 +471,7 @@
   let open = false, raf = null, lastT = 0;
 
   function newPlayer() {
-    return { hp: 100, armor: 0, bullets: 40, shells: 10, weapon: 0, key: false };
+    return { hp: 100, armor: 0, bullets: 40, shells: 10, weapon: 1, key: false };
   }
   const alive = e => e.st !== 'dead' && e.st !== 'dying' && e.st !== 'gone';
 
@@ -499,7 +512,7 @@
       px, py, dirX: 1, dirY: 0, planeX: 0, planeY: PLANE, pitch: 0,
       p: player || newPlayer(),
       wpTimer: 0, wpFrame: -1, wpSeq: 0, wpSwitch: 0, wpNext: -1,
-      bob: 0, moving: 0, flashHurt: 0, flashPick: 0, muzzle: 0, shake: 0, deadT: 0,
+      bob: 0, moving: 0, flashHurt: 0, flashPick: 0, muzzle: 0, shake: 0, deadT: 0, finT: 0, slowT: 0, stagHint: false,
       msg: '', msgT: 0, time: 0, kills: 0, total: enemies.length, found: 0, totalItems: items.length
     };
     G.p.key = false;
@@ -845,7 +858,9 @@ void main() {
       // мутант: картинка натянута на сетку, и сетка гнётся — шаги, руки, дыхание, рывок, боль
       const enemyMesh = (en, name, h, aspect) => {
         const w = h * aspect;
-        seg(name, 1, 0, en.flash > 0 ? 0.65 : 0);
+        const stag = en.stag > 0;
+        // оглушённый мутант мерцает — подсказка, что его можно добить
+        seg(name, 1, 0, en.flash > 0 ? 0.65 : stag ? 0.12 + 0.12 * Math.sin(g.time * 9) : 0);
         const isTech = en.kind === 't';
         const ph = en.phase, mv = en.mv;
         const sP = Math.sin(ph), cP = Math.cos(ph);
@@ -887,6 +902,12 @@ void main() {
           if (atk) { lx *= 1 + atk * 0.16 * top; ly -= atk * 0.06 * h * top; }
           // попадание: дёргается вбок и назад
           if (pain) { lx += pain * 0.07 * h * top * en.painDir; ly += pain * 0.025 * h * top; }
+          // оглушён: шатается и оседает
+          if (stag) {
+            lx += Math.sin(g.time * 4 + en.seed) * 0.09 * h * top;
+            ly -= (0.06 + Math.sin(g.time * 7) * 0.015) * h * top;
+            if (v > hipY) lx += Math.sin(g.time * 4 + en.seed + 1) * 0.03 * h * ((v - hipY) / (1 - hipY));
+          }
           return [en.x + rx * lx, ly, en.y + rz * lx];
         };
         const C = 5, R = 10;
@@ -1094,12 +1115,33 @@ void main() {
   // =====================================================================
   function drawOverlay() {
     const w = WEAPONS[G.p.weapon];
-    const base = G.p.weapon === 0 ? 'pistol' : 'shotgun';
+    let base = w.id;
     let frame = 'idle';
     if (G.wpFrame >= 0) frame = w.frames[G.wpFrame][0];
+    // добивание: на миг в руке лом, какое бы оружие ни было
+    if (G.finT > 0) { base = 'crowbar'; frame = G.finT > 0.2 ? 'raise' : 'hit'; }
     const im = IMG[base + '-' + frame] || IMG[base + '-idle'];
     const idle = IMG[base + '-idle'];
-    if (idle && state !== 'dead') {
+    if (base === 'crowbar' && im && state !== 'dead') {
+      const m = (META.crowbar && META.crowbar[frame]) || { dx: -im.width / 2, dy: -im.height };
+      const bx = Math.sin(G.bob) * 5 * G.moving, by = Math.abs(Math.cos(G.bob)) * 5 * G.moving;
+      const sw = G.wpSwitch > 0 ? (G.wpSwitch > 0.15 ? (0.3 - G.wpSwitch) : G.wpSwitch) / 0.15 * 110 : 0;
+      ctx.imageSmoothingEnabled = false;
+      // след от взмаха
+      if (frame === 'hit') {
+        ctx.save();
+        ctx.lineCap = 'round';
+        for (let i = 0; i < 4; i++) {
+          ctx.strokeStyle = 'rgba(230,230,220,' + (0.22 - i * 0.05) + ')';
+          ctx.lineWidth = 6 - i;
+          ctx.beginPath();
+          ctx.arc(W / 2 + 60, VH + 40, 150 - i * 9, Math.PI * 1.08, Math.PI * 1.42);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+      ctx.drawImage(im, Math.round(W / 2 + m.dx + bx), Math.round(VH + m.dy + by + sw + (frame === 'idle' ? 4 : 0)));
+    } else if (idle && state !== 'dead') {
       const bw = idle.width, bh = idle.height;
       const bx = Math.sin(G.bob) * 5 * G.moving, by = Math.abs(Math.cos(G.bob)) * 5 * G.moving;
       const sw = G.wpSwitch > 0 ? (G.wpSwitch > 0.15 ? (0.3 - G.wpSwitch) : G.wpSwitch) / 0.15 * 90 : 0;
@@ -1159,7 +1201,8 @@ void main() {
     const p = G.p, w = WEAPONS[p.weapon];
     field(4, 58, 'ЗДОРОВЬЕ', Math.max(0, Math.ceil(p.hp)) + '%', p.hp > 30 ? '#ff3030' : '#ff9090');
     field(66, 58, 'БРОНЯ', Math.ceil(p.armor) + '%', '#7fb2ff');
-    field(128, 70, 'ПАТРОНЫ ' + w.short, String(p[w.ammo]), '#ffd95a');
+    if (w.ammo) field(128, 70, 'ПАТРОНЫ ' + w.short, String(p[w.ammo]), '#ffd95a');
+    else field(128, 70, 'ЛОМ', '—', '#ffd95a');
     const kx = 202, y = VH + 4, h = HUDH - 8;
     ctx.fillStyle = '#000'; ctx.fillRect(kx, y, 34, h); bevel(kx, y, 34, h, true);
     if (p.key && IMG.keycard) ctx.drawImage(IMG.keycard, kx + 4, y + 3, 26, 20);
@@ -1364,6 +1407,7 @@ void main() {
         else {
           G.wpSeq = fr[G.wpFrame][1];
           if (fr[G.wpFrame][0] === 'reload') { SFX.pump(); ejectCasing(true); }
+          if (fr[G.wpFrame][0] === 'hit') melee();
         }
       }
     }
@@ -1389,6 +1433,7 @@ void main() {
     G.flashPick = Math.max(0, G.flashPick - dt * 1.5);
     G.muzzle = Math.max(0, G.muzzle - dt * 6);
     G.shake = Math.max(0, G.shake - dt * 2.2);
+    if (G.finT > 0) G.finT = Math.max(0, G.finT - dt);
     G.msgT -= dt;
   }
 
@@ -1418,13 +1463,70 @@ void main() {
     say(WEAPONS[n].name, 1.5);
   }
 
+  // враг прямо перед игроком, на расстоянии удара
+  function enemyInFront(range, onlyStag) {
+    let best = null, bd = range;
+    for (const e of G.enemies) {
+      if (!alive(e) || (onlyStag && !(e.stag > 0))) continue;
+      const dx = e.x - G.px, dy = e.y - G.py, d = Math.hypot(dx, dy);
+      if (d > bd || d < 0.01) continue;
+      if ((dx * G.dirX + dy * G.dirY) / d < 0.78) continue;
+      best = e; bd = d;
+    }
+    return best;
+  }
+
+  // удар ломом
+  function melee() {
+    const e = enemyInFront(1.4);
+    if (e) {
+      if (e.stag > 0) { finisher(e); return; }
+      const tt = TEX[e.def.name + '-walk'];
+      SFX.bash();
+      G.shake = Math.max(G.shake, 0.35);
+      bloodBurst(e.x - G.dirX * 0.2, tt.h * e.def.upp * 0.65, e.y - G.dirY * 0.2, G.dirX, G.dirY, 16, 0.9);
+      damage(e, 24 + rnd() * 14, G.dirX * 1.6, G.dirY * 1.6, false);
+      return;
+    }
+    // по стене — звон и искры
+    const wall = castRay(G.px, G.py, G.dirX, G.dirY);
+    if (wall.d < 1.25) {
+      SFX.clang();
+      G.shake = Math.max(G.shake, 0.2);
+      const hx = G.px + G.dirX * wall.d, hz = G.py + G.dirY * wall.d, y = EYE - 0.08;
+      const n = [wall.nx, 0, wall.ny];
+      if (!wall.door) decal(hx, y, hz, n, rr(0.05, 0.07), 'hole', [1, 1, 1, 0.8]);
+      for (let i = 0; i < 9; i++) part({ x: hx + n[0] * 0.02, y, z: hz + n[2] * 0.02, vx: n[0] * rr(0.5, 2.5) + rr(-1.5, 1.5), vy: rr(0, 2.5), vz: n[2] * rr(0.5, 2.5) + rr(-1.5, 1.5), s: 0.012, c: [1, rr(0.6, 0.9), 0.3, 1], kind: 'spark', life: rr(0.2, 0.4), grav: 5 });
+    }
+  }
+
+  // добивание оглушённого мутанта: замедление, хруст, разлёт, бонус к здоровью
+  function finisher(e) {
+    G.finT = Math.max(G.finT, 0.32);
+    G.slowT = 0.7;
+    G.shake = Math.max(G.shake, 0.7);
+    SFX.bash(); SFX.finisher();
+    light(e.x, 0.6, e.y, 3.5, [0.5, 1.6, 0.6], 0.5);
+    const tt = TEX[e.def.name + '-walk'];
+    bloodBurst(e.x, tt.h * e.def.upp * 0.7, e.y, G.dirX, G.dirY, 40, 1.4);
+    damage(e, 999, G.dirX * 2, G.dirY * 2, true);
+    G.p.hp = Math.min(Math.max(G.p.hp, 100), G.p.hp + 10);
+    G.flashPick = 0.25;
+    say('Добивание! +10 здоровья', 1.6);
+  }
+
   function fire() {
     const p = G.p, w = WEAPONS[p.weapon];
-    if (G.wpTimer > 0 || G.wpSwitch > 0) return;
+    if (G.wpTimer > 0 || G.wpSwitch > 0 || G.finT > 0) return;
+    if (w.melee) {
+      G.wpTimer = w.cd; G.wpFrame = 0; G.wpSeq = w.frames[0][1];
+      SFX.swing();
+      return;
+    }
     if (p[w.ammo] <= 0) {
       G.wpTimer = 0.4; SFX.empty();
-      const other = WEAPONS.findIndex(x => p[x.ammo] > 0);
-      if (other >= 0) switchWeapon(other); else say('Патроны кончились!');
+      const other = WEAPONS.findIndex(x => x.ammo && p[x.ammo] > 0);
+      if (other >= 0) switchWeapon(other); else { say('Патроны кончились! В ход идёт лом'); switchWeapon(0); }
       return;
     }
     p[w.ammo]--;
@@ -1433,16 +1535,17 @@ void main() {
     G.shake = Math.max(G.shake, w.kick);
     if (gl3d) G.pitch = Math.min(0.95, G.pitch + w.kick * 0.04);
     SFX[w.sfx]();
-    light(G.px + G.dirX * 0.4, EYE, G.py + G.dirY * 0.4, p.weapon ? 5.5 : 4, [2.2, 1.6, 0.9], 0.07);
-    if (p.weapon === 0) ejectCasing(false);
+    const isShot = w.id === 'shotgun';
+    light(G.px + G.dirX * 0.4, EYE, G.py + G.dirY * 0.4, isShot ? 5.5 : 4, [2.2, 1.6, 0.9], 0.07);
+    if (w.id === 'pistol') ejectCasing(false);
     const hits = new Map();
-    const pellets = p.weapon === 0 ? 1 : 8;
+    const pellets = isShot ? 8 : 1;
     for (let i = 0; i < pellets; i++) {
-      const spread = p.weapon === 0 ? 0.02 : 0.17;
-      const dmg = p.weapon === 0 ? 10 + rnd() * 9 : 6 + rnd() * 5;
+      const spread = isShot ? 0.17 : 0.02;
+      const dmg = isShot ? 6 + rnd() * 5 : 10 + rnd() * 9;
       shoot((rnd() - 0.5) * spread, (rnd() - 0.5) * spread * 0.5, dmg, hits);
     }
-    hits.forEach((h, e) => damage(e, h.dmg, h.dx, h.dy, p.weapon === 1 && h.dist < 2.6));
+    hits.forEach((h, e) => damage(e, h.dmg, h.dx, h.dy, isShot && h.dist < 2.6));
     for (const e of G.enemies) if (e.st === 'idle' && Math.hypot(e.x - G.px, e.y - G.py) < 11) wake(e);
   }
 
@@ -1473,7 +1576,8 @@ void main() {
       const hx = G.px + dx * bestT, hz = G.py + dy * bestT;
       const prev = hits.get(best);
       if (prev) prev.dmg += dmg; else hits.set(best, { dmg, dx, dy, dist: bestT });
-      bloodBurst(hx, h, hz, dx, dy, G.p.weapon ? 7 : 14, G.p.weapon ? 1.2 : 1);
+      const sg = wid() === 'shotgun';
+      bloodBurst(hx, h, hz, dx, dy, sg ? 7 : 14, sg ? 1.2 : 1);
       SFX.flesh();
       return;
     }
@@ -1504,6 +1608,8 @@ void main() {
     e.hp -= dmg; e.flash = 0.09;
     const push = Math.min(6, dmg * 0.09);
     e.kx += dx * push; e.ky += dy * push;
+    // иногда «последнее» попадание не убивает, а оглушает — можно добить (кроме мощных выстрелов в упор)
+    if (e.hp <= 0 && !e.stagDone && dmg < 40 && !close && rnd() < 0.35) e.hp = 1;
     if (e.hp <= 0) {
       G.kills++;
       // сильное попадание разрывает мутанта
@@ -1522,6 +1628,13 @@ void main() {
       e.stun = 0.18;
       e.pain = 0.28; e.painDir = rnd() < 0.5 ? -1 : 1;
       SFX.pain();
+      // тяжело ранен — шатается, оглушён: можно добить
+      if (!e.stagDone && e.hp <= e.def.hp * 0.42) {
+        e.stagDone = true;
+        e.stag = 3.2;
+        atDist(e.x, e.y, () => SFX.stun());
+        if (!G.stagHint) { G.stagHint = true; say(isTouch ? 'Мутант оглушён! Подойдите и нажмите «Открыть» — добивание' : 'Мутант оглушён! Подойдите и ударьте ломом или нажмите E — добивание', 3.5); }
+      }
     }
   }
 
@@ -1549,6 +1662,12 @@ void main() {
     if (e.atk > 0) e.atk = Math.max(0, e.atk - dt);
     if (e.pain > 0) e.pain = Math.max(0, e.pain - dt);
     e.mv = Math.max(0, e.mv - dt * 3);
+    // оглушён: шатается на месте, не нападает
+    if (e.stag > 0) {
+      e.stag -= dt; e.anim += dt;
+      if (e.stag <= 0) { e.stag = 0; e.cd = 0.8; }
+      return;
+    }
     if (e.st === 'idle') { if (e.see && dist < 13) wake(e); return; }
     e.anim += dt;
     e.cd -= dt;
@@ -1631,6 +1750,9 @@ void main() {
   }
 
   function use() {
+    // оглушённый мутант рядом — добивание (лом сам оказывается в руке)
+    const st = enemyInFront(1.5, true);
+    if (st && !(G.finT > 0)) { SFX.swing(); finisher(st); return; }
     for (const r of [0.6, 1.1, 1.5]) {
       const cx = Math.floor(G.px + G.dirX * r), cy = Math.floor(G.py + G.dirY * r);
       const c = cellAt(cx, cy);
@@ -1691,10 +1813,11 @@ void main() {
     showMenu(`
       <h2>Управление</h2>
       <p><b>Компьютер:</b> щёлкните по экрану игры, чтобы управлять мышью. W A S D или стрелки — ходить, мышь — обзор,
-      левая кнопка, Пробел или Ctrl — огонь, E или Enter — открыть дверь, 1 и 2 (или Q) — оружие, Shift — бег, Esc — пауза.
+      левая кнопка, Пробел или Ctrl — огонь, E или Enter — открыть дверь, 1 — лом, 2 — пистолет, 3 — дробовик (Q — следующее), Shift — бег, Esc — пауза.
       Без мыши: PageUp / PageDown — смотреть вверх-вниз, End — прямо.</p>
       <p><b>Телефон:</b> левая половина — джойстик (ходить), правая — ведите пальцем, чтобы осмотреться.
       Кнопки: ОГОНЬ, Открыть (двери и шлюз), Оружие. Удобнее держать телефон горизонтально.</p>
+      <p><b>Добивание:</b> тяжело раненый мутант шатается и мерцает. Подойдите вплотную и ударьте ломом (или нажмите E / «Открыть») — расправа и +10 здоровья.</p>
       <p>Красную дверь открывает красная карта доступа. Уровень заканчивается у зелёной двери шлюза.</p>
       <button class="win95-button" data-m="${back}">Назад</button>`);
   }
@@ -1791,7 +1914,7 @@ void main() {
   });
 
   // ---------- управление: клавиатура и мышь ----------
-  const GAME_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ControlLeft', 'ControlRight', 'ShiftLeft', 'ShiftRight', 'KeyE', 'Enter', 'KeyQ', 'Digit1', 'Digit2', 'Escape', 'PageUp', 'PageDown', 'End']);
+  const GAME_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ControlLeft', 'ControlRight', 'ShiftLeft', 'ShiftRight', 'KeyE', 'Enter', 'KeyQ', 'Digit1', 'Digit2', 'Digit3', 'Escape', 'PageUp', 'PageDown', 'End']);
   window.addEventListener('keydown', e => {
     if (!open) return;
     if (state !== 'play') { if (e.code === 'Escape' && state === 'pause') { e.preventDefault(); play(); } return; }
@@ -1802,6 +1925,7 @@ void main() {
     if (e.code === 'KeyE' || e.code === 'Enter') input.use = true;
     else if (e.code === 'Digit1') switchWeapon(0);
     else if (e.code === 'Digit2') switchWeapon(1);
+    else if (e.code === 'Digit3') switchWeapon(2);
     else if (e.code === 'KeyQ') switchWeapon();
     input.keys.add(e.code);
   });
@@ -1924,6 +2048,8 @@ void main() {
   function step(dt) {
     ctx.setTransform(K, 0, 0, K, 0, 0);
     if (G && artReady) {
+      // замедление времени при добивании
+      if (G.slowT > 0) { G.slowT -= dt; dt *= 0.3; }
       if (state === 'play') update(dt);
       else if (state === 'dead') { G.deadT += dt; G.time += dt; updateEffects(dt); G.shake = Math.max(0, G.shake - dt * 2); G.flashHurt = Math.max(0, G.flashHurt - dt); }
       if (gl3d) {
