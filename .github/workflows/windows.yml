@@ -9,6 +9,8 @@ on:
     branches: [ main ]
     paths:
       - 'index.html'
+      - 'game.js'
+      - 'game-art.js'
       - 'manifest.json'
       - 'icon-512.png'
       - '.github/workflows/windows.yml'
@@ -103,9 +105,10 @@ jobs:
               callback({ cancel: !/^(app|data|blob|devtools):/i.test(details.url) });
             });
 
-            // из разрешений нужно только копирование в буфер обмена
+            // из разрешений нужны только копирование в буфер обмена
+            // и захват мыши в игре «Лунная тревога»
             session.defaultSession.setPermissionRequestHandler((wc, permission, callback) => {
-              callback(permission === 'clipboard-sanitized-write');
+              callback(permission === 'clipboard-sanitized-write' || permission === 'pointerLock');
             });
 
             Menu.setApplicationMenu(null);
@@ -146,7 +149,7 @@ jobs:
 
           app.on('window-all-closed', () => app.quit());
           PASSGEN_EOF
-          cp index.html manifest.json icon-192.png icon-512.png desktop/www/
+          cp index.html game.js game-art.js manifest.json icon-192.png icon-512.png desktop/www/
           cp icon-512.png desktop/icon.png
           sed -i "s/\"version\": \"3.0.0\"/\"version\": \"3.0.${{ github.run_number }}\"/" desktop/package.json
           grep '"version"' desktop/package.json
