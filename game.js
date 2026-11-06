@@ -52,6 +52,16 @@
 .ln-menu p { max-width: 460px; font-size: 13px; line-height: 1.45; }
 .ln-menu .win95-button { min-width: 240px; }
 .ln-menu .ln-small { font-size: 11px; color: #aaa; }
+.ln-dos { position: absolute; inset: 0; z-index: 8; display: none; background: #000; color: #aaa; overflow: hidden; cursor: default;
+  font: clamp(10px, 2.3vw, 15px)/1.4 "Courier New", Courier, monospace; }
+.ln-dos.show { display: block; }
+.ln-dos-bar { background: #0000a8; color: #ffff55; text-align: center; padding: 3px 4px; white-space: pre; overflow: hidden; }
+.ln-dos pre { margin: 0; padding: 6px 10px; white-space: pre-wrap; font: inherit; }
+.ln-dos .ok { color: #55ff55; }
+.ln-dos .warn { color: #ff5555; }
+.ln-dos .hi { color: #fff; }
+.ln-dos .cur { animation: lnBlink .5s steps(1) infinite; }
+@keyframes lnBlink { 50% { opacity: 0; } }
 `;
   const style = document.createElement('style');
   style.textContent = css;
@@ -80,6 +90,7 @@
         <div class="ln-btn ln-pause" data-b="pause">II</div>
       </div>
       <div class="ln-menu" id="lnMenu"></div>
+      <div class="ln-dos" id="lnDos"><div class="ln-dos-bar">Л У Н Н А Я   Т Р Е В О Г А   —   запуск системы v1.0</div><pre id="lnDosText"></pre></div>
     </div>
   </div>`;
   document.body.appendChild(win);
@@ -1938,12 +1949,68 @@ void main() {
   document.addEventListener('visibilitychange', () => { if (document.hidden && open) { input.keys.clear(); input.fire = false; pauseScreen(); } });
   document.getElementById('lnX').addEventListener('click', close);
 
+  // ---------- загрузка в стиле DOS: строки журнала, бегущие точки, мигающий курсор ----------
+  const dosEl = document.getElementById('lnDos');
+  const dosText = document.getElementById('lnDosText');
+  let dosSkip = false;
+  dosEl.addEventListener('pointerdown', () => { dosSkip = true; });
+  window.addEventListener('keydown', () => { if (dosEl.classList.contains('show')) dosSkip = true; });
+
+  function dosBoot(art) {
+    dosSkip = false;
+    dosText.textContent = '';
+    dosEl.classList.add('show');
+    const wait = ms => new Promise(r => setTimeout(r, dosSkip ? 0 : ms));
+    const span = (text, cls) => { const s = document.createElement('span'); if (cls) s.className = cls; s.textContent = text; dosText.appendChild(s); return s; };
+    const disk = () => { noise(0.015, 'highpass', 3500, 0.12); if (rnd() < 0.5) noise(0.012, 'highpass', 2800, 0.08, 0.03); };
+    const W0 = 34; // ширина колонки с точками
+    // [надпись, результат (строка или функция), класс результата]
+    const lines = [
+      ['MEM_Init: проверка памяти', '640K OK', 'ok'],
+      ['TEX_Load: текстуры станции', () => art.then(() => Object.keys(TEX).length + ' шт.'), 'ok'],
+      ['GFX_Init: видеоадаптер', () => art.then(() => (gl3d ? 'WebGL, 3D' : 'VGA, 2D')), 'ok'],
+      ['SPR_Load: мутанты', '2 вида', 'ok'],
+      ['SND_Init: синтезатор звука', () => (soundOn() ? 'OK' : 'выключен'), 'ok'],
+      ['MAP_Load: карты уровней', String(LEVELS.length), 'ok'],
+      ['CRY_Scan: заражение кристаллом', '97% (!)', 'warn'],
+      ['NET_Init: связь с Землёй', 'НЕТ СИГНАЛА', 'warn'],
+      ['AI_Init: пробуждение мутантов', 'ОНИ ПРОСНУЛИСЬ', 'warn'],
+      ['ST_Init: панель состояния', 'OK', 'ok']
+    ];
+    return (async () => {
+      span('Станция «Селена-7», терминал службы охраны\n', 'hi');
+      span('Своя разработка. Только для себя.\n\n');
+      await wait(350);
+      for (const [label, res, cls] of lines) {
+        span(label + ' ');
+        disk();
+        const dots = span('');
+        const n = Math.max(3, W0 - label.length);
+        for (let i = 0; i < n; i += 3) { dots.textContent += '...'.slice(0, Math.min(3, n - i)); await wait(14); }
+        let r = typeof res === 'function' ? res() : res;
+        if (r && r.then) r = await r;
+        span(' ' + r + '\n', cls);
+        await wait(110 + rnd() * 160);
+      }
+      await art;
+      span('\nЗапуск');
+      for (let i = 0; i < 3; i++) { await wait(180); span('.'); }
+      span('\n');
+      span('_', 'cur');
+      await wait(650);
+      dosEl.classList.remove('show');
+    })();
+  }
+
   let ready = null;
   function openGame() {
     open = true;
     win.classList.add('show');
     fit();
-    if (!ready) ready = loadArt().then(() => { GL.init(); applyQuality(); });
+    if (!ready) {
+      const art = loadArt().then(() => { GL.init(); applyQuality(); });
+      ready = dosBoot(art).then(() => art);
+    }
     ready.then(() => {
       if (!open) return;
       if (!G || state === 'title') titleScreen();
