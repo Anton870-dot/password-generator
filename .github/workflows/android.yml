@@ -9,6 +9,8 @@ on:
     branches: [ main ]
     paths:
       - 'index.html'
+      - 'game.js'
+      - 'game-art.js'
       - 'manifest.json'
       - 'icon-192.png'
       - 'icon-512.png'
@@ -690,7 +692,7 @@ jobs:
       - name: Копируем веб-приложение внутрь APK
         run: |
           mkdir -p android/app/src/main/assets/www
-          cp index.html manifest.json icon-192.png icon-512.png android/app/src/main/assets/www/
+          cp index.html game.js game-art.js manifest.json icon-192.png icon-512.png android/app/src/main/assets/www/
 
       - name: Ключ подписи
         env:
