@@ -158,7 +158,14 @@
       TEX.lamp = makeLamp();
       TEX.casing = makeCasing([200, 160, 60], [120, 90, 30]);
       TEX.shell = makeCasing([200, 30, 30], [210, 170, 70]);
-      for (let i = 0; i < 4; i++) TEX['splat' + i] = makeSplat();
+      for (let i = 0; i < 4; i++) { TEX['splat' + i] = makeSplat(); TEX['wsplat' + i] = makeWallSplat(); }
+      TEX.drop = makeDrop();
+      TEX.mist = makeMist();
+      for (let i = 0; i < 8; i++) {
+        TEX['gib-tech-' + i] = makeChunk(TEX['tech-walk']);
+        TEX['gib-astro-' + i] = makeChunk(TEX['astro-walk']);
+      }
+      for (let i = 0; i < 6; i++) TEX['meat-' + i] = makeChunk(null);
       artReady = true;
     });
   }
@@ -225,24 +232,88 @@
       return rgba(c[0] * k, c[1] * k, c[2] * k, 255);
     });
   }
-  // клякса крови (белая, красится цветом)
+  // ---- кровь: всё белое/серое, цвет даёт частица или след (так один рисунок годится для разных оттенков)
+  // лужа/клякса на полу: густое пятно, брызги вокруг, блики
   function makeSplat() {
-    const n = 32;
+    const n = 48, c = n / 2;
     const blobs = [];
-    for (let i = 0; i < 9; i++) {
-      const a = rnd() * Math.PI * 2, d = rnd() * 9;
-      blobs.push([16 + Math.cos(a) * d, 16 + Math.sin(a) * d, 3 + rnd() * 5]);
-    }
-    for (let i = 0; i < 7; i++) {
-      const a = rnd() * Math.PI * 2, d = 10 + rnd() * 5;
-      blobs.push([16 + Math.cos(a) * d, 16 + Math.sin(a) * d, 1 + rnd() * 1.6]);
-    }
+    for (let i = 0; i < 12; i++) { const a = rnd() * 6.283, d = rnd() * 12; blobs.push([c + Math.cos(a) * d, c + Math.sin(a) * d, 4 + rnd() * 7]); }
+    for (let i = 0; i < 14; i++) { const a = rnd() * 6.283, d = 14 + rnd() * 8; blobs.push([c + Math.cos(a) * d, c + Math.sin(a) * d, 0.8 + rnd() * 2]); }
+    // вытянутые брызги-лучи
+    for (let i = 0; i < 6; i++) { const a = rnd() * 6.283; for (let k = 0; k < 5; k++) { const d = 10 + k * 2.5; blobs.push([c + Math.cos(a) * d, c + Math.sin(a) * d, 2.2 - k * 0.35]); } }
     return makeTex(n, n, (x, y) => {
       let v = 0;
       for (const [bx, by, r] of blobs) v = Math.max(v, 1 - Math.hypot(x - bx, y - by) / r);
       if (v <= 0) return 0;
-      const shade = 170 + 85 * Math.min(1, v * 2);
-      return rgba(shade, shade, shade, Math.min(255, 120 + v * 400));
+      const k = Math.min(1, v * 2.2);
+      let sh = 120 + 135 * k;                       // к краям темнее (кровь засыхает)
+      if (v > 0.55 && rnd() < 0.04) sh = 255 + 60;  // блик на густой крови
+      return rgba(sh, sh, sh, Math.min(255, 150 + v * 420));
+    });
+  }
+  // клякса на стене: пятно и потёки вниз
+  function makeWallSplat() {
+    const w = 32, h = 64, cx = 16, cy = 18;
+    const blobs = [];
+    for (let i = 0; i < 9; i++) { const a = rnd() * 6.283, d = rnd() * 8; blobs.push([cx + Math.cos(a) * d, cy + Math.sin(a) * d, 3 + rnd() * 5]); }
+    for (let i = 0; i < 10; i++) { const a = rnd() * 6.283, d = 10 + rnd() * 5; blobs.push([cx + Math.cos(a) * d, cy + Math.sin(a) * d, 0.8 + rnd() * 1.5]); }
+    const drips = [];
+    for (let i = 0; i < 3 + rnd() * 4; i++) drips.push([cx + rr(-8, 8), cy + rr(2, 6), rr(14, 42), rr(0.8, 1.8)]);
+    return makeTex(w, h, (x, y) => {
+      let v = 0;
+      for (const [bx, by, r] of blobs) v = Math.max(v, 1 - Math.hypot(x - bx, y - by) / r);
+      for (const [dx, dy, len, wd] of drips) {
+        if (y < dy || y > dy + len + 2) continue;
+        const t = (y - dy) / len;
+        const ww = t > 1 ? wd + 1.2 : wd * (1 - t * 0.4);   // на конце потёка — капля
+        const ay = t > 1 ? 1 - (y - dy - len) / 2.5 : 1;
+        v = Math.max(v, (1 - Math.abs(x - dx) / ww) * ay);
+      }
+      if (v <= 0) return 0;
+      const sh = 120 + 135 * Math.min(1, v * 2);
+      return rgba(sh, sh, sh, Math.min(255, 160 + v * 400));
+    });
+  }
+  // мягкая капля
+  function makeDrop() {
+    return makeTex(16, 16, (x, y) => {
+      const d = Math.hypot(x - 7.5, y - 7.5) / 7.5;
+      if (d >= 1) return 0;
+      const a = Math.pow(1 - d, 0.6);
+      const sh = d < 0.35 && x < 7 && y < 7 ? 255 : 200;
+      return rgba(sh, sh, sh, 255 * a);
+    });
+  }
+  // кровавая дымка
+  function makeMist() {
+    return makeTex(32, 32, (x, y) => {
+      const d = Math.hypot(x - 15.5, y - 15.5) / 15.5;
+      if (d >= 1) return 0;
+      const a = Math.exp(-d * d * 3.2) * (0.75 + rnd() * 0.25);
+      return rgba(220, 220, 220, 255 * a);
+    });
+  }
+  // кусок мутанта: рваный край, кусок одежды/кожи с его картинки, мясо и кровь по краям
+  function makeChunk(src) {
+    const n = 16 + ((rnd() * 10) | 0), c = n / 2;
+    const blobs = [];
+    for (let i = 0; i < 5; i++) { const a = rnd() * 6.283, d = rnd() * n * 0.22; blobs.push([c + Math.cos(a) * d, c + Math.sin(a) * d, n * (0.18 + rnd() * 0.2)]); }
+    const sx0 = src ? Math.floor(rr(0.22, 0.78) * src.w - n / 2) : 0, sy0 = src ? Math.floor(rr(0.1, 0.8) * src.h - n / 2) : 0;
+    const bone = rnd() < 0.25, boneA = rnd() * 3.14;
+    return makeTex(n, n, (x, y) => {
+      let v = 0;
+      for (const [bx, by, r] of blobs) v = Math.max(v, 1 - Math.hypot(x - bx, y - by) / r);
+      if (v <= 0) return 0;
+      let r, g, b;
+      const flesh = () => { const k = rr(0.75, 1.15); r = 150 * k; g = 22 * k; b = 26 * k; if (rnd() < 0.06) { r = 225; g = 190; b = 140; } };
+      if (src) {
+        const px = src.px[Math.min(src.h - 1, Math.max(0, sy0 + y)) * src.w + Math.min(src.w - 1, Math.max(0, sx0 + x))];
+        if ((px >>> 24) < 128) flesh(); else { r = px & 255; g = (px >> 8) & 255; b = (px >> 16) & 255; }
+        if (rnd() < 0.12) { r = r * 0.6 + 60; g *= 0.3; b *= 0.3; }   // пятна крови на одежде
+      } else flesh();
+      if (bone) { const d = Math.abs((x - c) * Math.sin(boneA) - (y - c) * Math.cos(boneA)); if (d < 1.4 && v > 0.3) { r = 230; g = 222; b = 205; } }
+      if (v < 0.28) { r = 95 + rnd() * 30; g = 6; b = 9; }                // рваный кровавый край
+      return rgba(r, g, b, 255);
     });
   }
 
@@ -474,6 +545,19 @@
     return { hp: 100, armor: 0, bullets: 40, shells: 10, weapon: 1, key: false };
   }
   const alive = e => e.st !== 'dead' && e.st !== 'dying' && e.st !== 'gone';
+  // какой кадр мутанта показать сейчас
+  function enemyFrame(e) {
+    const n = e.def.name, has = f => !!TEX[n + '-' + f];
+    if (e.st === 'dead') return n + '-dead';
+    if (e.st === 'dying') return n + '-dying';
+    if ((e.wind > 0 || e.atk > 0) && has('attack')) return n + '-attack';
+    if ((e.pain > 0 || e.stag > 0) && has('pain')) return n + '-pain';
+    if (has('walk1')) {
+      if (e.st === 'chase' && e.mv > 0.2) return n + (Math.sin(e.phase) >= 0 ? '-walk1' : '-walk2');
+      return n + '-walk1';
+    }
+    return n + '-walk';
+  }
 
   function startLevel(n, player) {
     const L = LEVELS[n];
@@ -513,6 +597,7 @@
       p: player || newPlayer(),
       wpTimer: 0, wpFrame: -1, wpSeq: 0, wpSwitch: 0, wpNext: -1,
       bob: 0, moving: 0, flashHurt: 0, flashPick: 0, muzzle: 0, shake: 0, deadT: 0, finT: 0, slowT: 0, stagHint: false,
+      face: { look: 0, lookT: 1, mode: '', modeT: 0, hold: 0, calm: false },
       msg: '', msgT: 0, time: 0, kills: 0, total: enemies.length, found: 0, totalItems: items.length
     };
     G.p.key = false;
@@ -616,7 +701,9 @@ void main() {
   float fog = clamp(1.3 - fd * uFog, 0.08, 1.0);
   vec3 col = base * L * fog;
   float glow = smoothstep(0.12, 0.35, c.g - max(c.r, c.b)) * 0.85;
-  col = max(col, base * max(vC.a, glow * fog * 1.4));
+  // в прозрачном проходе альфа вершины — это прозрачность, а не свечение
+  float em = uBlend > 0.5 ? 0.0 : vC.a;
+  col = max(col, base * max(em, glow * fog * 1.4));
   col = mix(col, vec3(1.0, 0.96, 0.9), uFlash);
   gl_FragColor = vec4(col, uBlend > 0.5 ? c.a * vC.a : 1.0);
 }`;
@@ -856,13 +943,15 @@ void main() {
         quad([x - rx * w2, lift, z - rz * w2], [x + rx * w2, lift, z + rz * w2], [x + rx * w2, lift + h, z + rz * w2], [x - rx * w2, lift + h, z - rz * w2], u0, 0, u1, 1, [0, 1, 0], c);
       };
       // мутант: картинка натянута на сетку, и сетка гнётся — шаги, руки, дыхание, рывок, боль
-      const enemyMesh = (en, name, h, aspect) => {
+      const enemyMesh = (en, name, h, aspect, real) => {
         const w = h * aspect;
         const stag = en.stag > 0;
         // оглушённый мутант мерцает — подсказка, что его можно добить
         seg(name, 1, 0, en.flash > 0 ? 0.65 : stag ? 0.12 + 0.12 * Math.sin(g.time * 9) : 0);
         const isTech = en.kind === 't';
         const ph = en.phase, mv = en.mv;
+        // на настоящих кадрах ходьбы ноги и руки уже нарисованы — сгибаем совсем чуть-чуть
+        const mvL = real ? mv * 0.25 : mv;
         const sP = Math.sin(ph), cP = Math.cos(ph);
         const atk = en.atk > 0 ? Math.sin((1 - en.atk / 0.32) * Math.PI) : 0;
         const pain = en.pain > 0 ? Math.sin(en.pain / 0.28 * Math.PI) : 0;
@@ -878,7 +967,7 @@ void main() {
           if (v > hipY) {
             // ноги: поочерёдно поднимаются и сгибаются
             const k = (v - hipY) / (1 - hipY);
-            const lift = Math.max(0, side * sP) * mv;
+            const lift = Math.max(0, side * sP) * mvL;
             ly += lift * (isTech ? 0.1 : 0.08) * h * k;
             lx -= side * lift * 0.025 * h * k;
           } else {
@@ -892,8 +981,8 @@ void main() {
           const armZone = Math.abs(u - 0.5) > 0.27 && v > 0.2 && v < 0.68;
           if (armZone) {
             const a = (v - 0.2) / 0.48;
-            lx += side * Math.sin(ph + (u < 0.5 ? 0 : Math.PI)) * mv * 0.035 * h * a;
-            ly += Math.cos(ph * 2) * mv * 0.01 * h * a;
+            lx += side * Math.sin(ph + (u < 0.5 ? 0 : Math.PI)) * mvL * 0.035 * h * a;
+            ly += Math.cos(ph * 2) * mvL * 0.01 * h * a;
           }
           // дыхание и покачивание на месте
           ly += breathe * h * top;
@@ -923,10 +1012,10 @@ void main() {
       for (const it of g.items) { const d = ITEM[it.kind], tt = TEX[d.tex]; if (tt) sprite(d.tex, it.x, it.y, tt.h * d.upp, 0, false, false, it.kind === 'k' ? 0.4 : 0); }
       for (const en of g.enemies) {
         if (en.st === 'gone') continue;
-        const fr = en.st === 'dead' ? 'dead' : en.st === 'dying' ? 'dying' : 'walk';
-        const tt = TEX[en.def.name + '-' + fr]; if (!tt) continue;
-        if (fr === 'walk') enemyMesh(en, en.def.name + '-walk', tt.h * en.def.upp, tt.w / tt.h);
-        else sprite(en.def.name + '-' + fr, en.x, en.y, tt.h * en.def.upp, 0, false, en.flash > 0, 0);
+        const name = enemyFrame(en);
+        const tt = TEX[name]; if (!tt) continue;
+        if (alive(en)) enemyMesh(en, name, tt.h * en.def.upp, tt.w / tt.h, !name.endsWith('-walk'));
+        else sprite(name, en.x, en.y, tt.h * en.def.upp, 0, false, en.flash > 0, 0);
       }
       // частицы и осколки — повёрнуты к камере
       const bill = (name, x, y, z, s, c, u0, v0, u1, v1) => {
@@ -938,14 +1027,45 @@ void main() {
           u0, v0, u1, v1, [0, 1, 0], c);
       };
       for (const s of g.shots) bill('shard', s.x, 0.5, s.y, 0.07, [1, 1, 1, 1], 0, 0, 1, 1);
-      for (const p of g.parts) bill(p.tex, p.x, p.y, p.z, p.s, p.c, p.u0, p.v0, p.u1, p.v1);
+      for (const p of g.parts) if (!p.blend) bill(p.tex, p.x, p.y, p.z, p.s, p.c, p.u0, p.v0, p.u1, p.v1);
       const opaqueEnd = segs.length;
-      // следы: кровь и дырки от пуль (полупрозрачные)
+      // следы: кровь и дырки от пуль (полупрозрачные, прижаты к поверхности)
       for (const dc of g.decals) {
         seg(dc.tex, 0, 1, 0);
-        const s = dc.s, tx = dc.t, bx = dc.b, n = dc.n;
-        const P = (a, b) => [dc.x + tx[0] * a * s + bx[0] * b * s, dc.y + tx[1] * a * s + bx[1] * b * s, dc.z + tx[2] * a * s + bx[2] * b * s];
-        quad(P(-1, -1), P(1, -1), P(1, 1), P(-1, 1), 0, 0, 1, 1, n, dc.c);
+        const s = dc.s, sy = dc.s * (dc.ar || 1), tx = dc.t, bx = dc.b, n = dc.n;
+        const P = (a, b) => [dc.x + tx[0] * a * s + bx[0] * b * sy, dc.y + tx[1] * a * s + bx[1] * b * sy, dc.z + tx[2] * a * s + bx[2] * b * sy];
+        // на стене верх картинки — вверху (потёки вниз)
+        if (n[1] === 0) quad(P(-1, -1), P(1, -1), P(1, 1), P(-1, 1), 0, 0, 1, 1, n, dc.c);
+        else quad(P(-1, -1), P(1, -1), P(1, 1), P(-1, 1), 0, 0, 1, 1, n, dc.c);
+      }
+      const decalEnd = segs.length;
+      // летящая кровь: мягкие капли, вытянутые по направлению полёта, и дымка
+      const ex = cam.eye[0], ey = cam.eye[1], ez = cam.eye[2];
+      for (const p of g.parts) {
+        if (!p.blend) continue;
+        seg(p.tex, 1, 1, 0);
+        const c = [p.c[0], p.c[1], p.c[2], p.a];
+        const sp = Math.hypot(p.vx, p.vy, p.vz);
+        if (p.kind === 'blood' && sp > 0.8) {
+          const dx = p.vx / sp, dy = p.vy / sp, dz = p.vz / sp;
+          let wx = p.x - ex, wy = p.y - ey, wz = p.z - ez;
+          // поперечная ось: перпендикулярно полёту и взгляду
+          let sx = dy * wz - dz * wy, sy2 = dz * wx - dx * wz, sz = dx * wy - dy * wx;
+          const sl = Math.hypot(sx, sy2, sz) || 1; sx /= sl; sy2 /= sl; sz /= sl;
+          const L = p.s + Math.min(0.06, sp * 0.009), Wd = p.s;
+          quad([p.x - dx * L - sx * Wd, p.y - dy * L - sy2 * Wd, p.z - dz * L - sz * Wd],
+            [p.x - dx * L + sx * Wd, p.y - dy * L + sy2 * Wd, p.z - dz * L + sz * Wd],
+            [p.x + dx * L + sx * Wd, p.y + dy * L + sy2 * Wd, p.z + dz * L + sz * Wd],
+            [p.x + dx * L - sx * Wd, p.y + dy * L - sy2 * Wd, p.z + dz * L - sz * Wd],
+            0, 0, 1, 1, [0, 1, 0], c);
+        } else {
+          const s = p.s;
+          quad([p.x - qx * s - ux * s, p.y - qy * s - uy * s, p.z - qz * s - uz * s],
+            [p.x + qx * s - ux * s, p.y + qy * s - uy * s, p.z + qz * s - uz * s],
+            [p.x + qx * s + ux * s, p.y + qy * s + uy * s, p.z + qz * s + uz * s],
+            [p.x - qx * s + ux * s, p.y - qy * s + uy * s, p.z - qz * s + uz * s],
+            0, 0, 1, 1, [0, 1, 0], c);
+        }
       }
       closeSegs();
       dyn = out;
@@ -960,6 +1080,7 @@ void main() {
           gl.depthMask(false);
           gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-1, -4);
         }
+        if (i === decalEnd) gl.disable(gl.POLYGON_OFFSET_FILL);
         gl.uniform1f(loc.uFlat, s.flat); gl.uniform1f(loc.uBlend, s.blend); gl.uniform1f(loc.uFlash, s.flash);
         gl.bindTexture(gl.TEXTURE_2D, tex(s.tex));
         gl.drawArrays(gl.TRIANGLES, s.start, s.count);
@@ -1070,8 +1191,9 @@ void main() {
     for (const it of G.items) { const d = ITEM[it.kind], t = TEX[d.tex]; if (t) add(it.x, it.y, t, t.h * d.upp, null); }
     for (const e of G.enemies) {
       if (e.st === 'gone') continue;
-      const fr = e.st === 'dead' ? 'dead' : e.st === 'dying' ? 'dying' : 'walk';
-      const t = TEX[e.def.name + '-' + fr];
+      const fname = enemyFrame(e);
+      const fr = fname.slice(e.def.name.length + 1);
+      const t = TEX[fname];
       if (!t) continue;
       let bob = 0, sq = 1;
       if (fr === 'walk' && e.st === 'chase') { bob = Math.abs(Math.sin(e.anim * 5)) * 0.03; sq = 1 + Math.sin(e.anim * 10) * 0.02; }
@@ -1199,22 +1321,35 @@ void main() {
     ctx.fillStyle = '#c0c0c0'; ctx.fillRect(0, VH, W, HUDH);
     ctx.fillStyle = '#fff'; ctx.fillRect(0, VH, W, 1);
     const p = G.p, w = WEAPONS[p.weapon];
-    field(4, 58, 'ЗДОРОВЬЕ', Math.max(0, Math.ceil(p.hp)) + '%', p.hp > 30 ? '#ff3030' : '#ff9090');
-    field(66, 58, 'БРОНЯ', Math.ceil(p.armor) + '%', '#7fb2ff');
-    if (w.ammo) field(128, 70, 'ПАТРОНЫ ' + w.short, String(p[w.ammo]), '#ffd95a');
-    else field(128, 70, 'ЛОМ', '—', '#ffd95a');
-    const kx = 202, y = VH + 4, h = HUDH - 8;
-    ctx.fillStyle = '#000'; ctx.fillRect(kx, y, 34, h); bevel(kx, y, 34, h, true);
-    if (p.key && IMG.keycard) ctx.drawImage(IMG.keycard, kx + 4, y + 3, 26, 20);
+    field(4, 54, 'ЗДОРОВЬЕ', Math.max(0, Math.ceil(p.hp)) + '%', p.hp > 30 ? '#ff3030' : '#ff9090');
+    field(60, 48, 'БРОНЯ', Math.ceil(p.armor) + '%', '#7fb2ff');
+    // лицо героя по центру панели
+    const fx = 110, y = VH + 3, fs = HUDH - 6;
+    ctx.fillStyle = '#2a2a2a'; ctx.fillRect(fx, y, fs + 2, fs); bevel(fx, y, fs + 2, fs, true);
+    const fimg = faceImage();
+    if (IMG[fimg]) {
+      ctx.save();
+      ctx.beginPath(); ctx.rect(fx + 1, y + 1, fs, fs - 2); ctx.clip();
+      ctx.imageSmoothingEnabled = K > 1;
+      ctx.drawImage(IMG[fimg], fx + 1, y + 1, fs, fs);
+      faceBlood(fx + 1, y + 1, fs, p.hp, fimg);
+      ctx.restore();
+      ctx.imageSmoothingEnabled = false;
+    }
+    if (w.ammo) field(148, 64, 'ПАТРОНЫ ' + w.short, String(p[w.ammo]), '#ffd95a');
+    else field(148, 64, 'ЛОМ', '—', '#ffd95a');
+    const kx = 214, h = HUDH - 8, ky = VH + 4;
+    ctx.fillStyle = '#000'; ctx.fillRect(kx, ky, 30, h); bevel(kx, ky, 30, h, true);
+    if (p.key && IMG.keycard) ctx.drawImage(IMG.keycard, kx + 4, ky + 4, 22, 17);
     ctx.font = '8px Tahoma, Verdana, sans-serif'; ctx.fillStyle = '#c0c0c0'; ctx.textAlign = 'center';
-    ctx.fillText('КАРТА', kx + 17, y + h - 10);
-    field(240, 76, 'МУТАНТЫ', G.kills + '/' + G.total, '#8dff96');
+    ctx.fillText('КАРТА', kx + 15, ky + h - 10);
+    field(246, 70, 'МУТАНТЫ', G.kills + '/' + G.total, '#8dff96');
   }
 
   // =====================================================================
   //  эффекты: частицы, следы, свет
   // =====================================================================
-  const MAX_PARTS = 900, MAX_DECALS = 220;
+  const MAX_PARTS = 900, MAX_DECALS = 480;
   const goreK = () => saved.gore === 2 ? 1 : saved.gore === 1 ? 0.35 : 0;
 
   function part(o) {
@@ -1224,33 +1359,51 @@ void main() {
     }
     G.parts.push(Object.assign({ u0: 0, v0: 0, u1: 1, v1: 1, life: 3, rest: false, bounce: 0.3, grav: 9, kind: 'blood', c: [1, 1, 1, 0], tex: 'dot', s: 0.02 }, o));
   }
-  function bloodColor() { const k = rr(0.5, 0.85); return [k, k * rr(0.02, 0.08), k * rr(0.02, 0.06), 0]; }
+  function bloodColor() { const k = rr(0.42, 0.72); return [k, k * rr(0.02, 0.06), k * rr(0.02, 0.05), 0]; }
 
-  function decal(x, y, z, n, size, texName, c) {
+  // след на поверхности; ar — вытянутость по вертикали (для потёков на стенах), grow — растекается до размера
+  function decal(x, y, z, n, size, texName, c, ar, grow) {
     if (G.decals.length >= MAX_DECALS) G.decals.shift();
     let t, b;
     if (n[1] !== 0) { t = [1, 0, 0]; b = [0, 0, 1]; }
     else { t = [-n[2], 0, n[0]]; b = [0, 1, 0]; }
-    const a = rnd() * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+    // на полу — любой поворот, на стене — почти прямо, чтобы потёки шли вниз
+    const a = n[1] !== 0 ? rnd() * Math.PI * 2 : rr(-0.12, 0.12), ca = Math.cos(a), sa = Math.sin(a);
     const T = [t[0] * ca + b[0] * sa, t[1] * ca + b[1] * sa, t[2] * ca + b[2] * sa];
     const B = [-t[0] * sa + b[0] * ca, -t[1] * sa + b[1] * ca, -t[2] * sa + b[2] * ca];
-    G.decals.push({ x: x + n[0] * 0.004, y: y + n[1] * 0.004, z: z + n[2] * 0.004, n, t: T, b: B, s: size, tex: texName, c });
+    ar = ar || 1;
+    // для вытянутого следа центр опускаем, чтобы пятно было в точке попадания, а потёки — ниже
+    const yy = n[1] === 0 && ar > 1 ? y - size * (ar - 1) * 0.88 : y;
+    G.decals.push({ x: x + n[0] * 0.004, y: yy + n[1] * 0.004, z: z + n[2] * 0.004, n, t: T, b: B, s: grow ? size * 0.25 : size, st: size, ar, tex: texName, c });
   }
-  function bloodDecal(x, y, z, n, size) {
+  function bloodDecal(x, y, z, n, size, grow) {
     if (!goreK()) return;
-    const c = bloodColor(); c[3] = rr(0.75, 0.95);
-    decal(x, y, z, n, size, 'splat' + ((rnd() * 4) | 0), c);
+    const c = bloodColor(); c[3] = rr(0.8, 0.97);
+    if (n[1] === 0) {
+      // на стене потёки; не ниже пола
+      const ar = 2;
+      if (y - size * 2.9 < 0.01) decal(x, y, z, n, size, 'splat' + ((rnd() * 4) | 0), c);
+      else decal(x, y, z, n, size, 'wsplat' + ((rnd() * 4) | 0), c, ar);
+    } else decal(x, y, z, n, size, 'splat' + ((rnd() * 4) | 0), c, 1, grow);
   }
   function light(x, y, z, r, c, t) { G.lights.push({ x, y, z, r, c, t, t0: t }); }
 
   // брызги крови из точки попадания: часть летит назад к стрелку, часть — дальше, на стену за врагом
   function bloodBurst(x, y, z, dx, dy, n, power) {
     const k = goreK();
-    const cnt = Math.round(n * k);
+    const cnt = Math.round(n * k * 1.6);
     for (let i = 0; i < cnt; i++) {
-      const through = rnd() < 0.65; // часть крови пролетает насквозь — до стены за врагом
-      const sp = (through ? rr(3, 7.5) : -rr(0.6, 2)) * power;
-      part({ x, y, z, vx: dx * sp + rr(-1, 1), vy: through ? rr(-0.4, 1.3) : rr(0, 2), vz: dy * sp + rr(-1, 1), s: rr(0.005, 0.014), c: bloodColor(), kind: 'blood', life: 2, grav: 6 });
+      const through = rnd() < 0.62; // часть крови пролетает насквозь — до стены за врагом
+      const sp = (through ? rr(3, 8) : -rr(0.6, 2.2)) * power;
+      const big = rnd() < 0.25;
+      part({ x, y, z, vx: dx * sp + rr(-1.2, 1.2), vy: through ? rr(-0.4, 1.4) : rr(0, 2.2), vz: dy * sp + rr(-1.2, 1.2),
+        s: big ? rr(0.016, 0.026) : rr(0.006, 0.014), c: bloodColor(), kind: 'blood', tex: 'drop', blend: true, a: 1, life: 2.2, grav: 6.5 });
+    }
+    // кровавая дымка в точке попадания
+    if (k) for (let i = 0; i < 2; i++) {
+      const c = bloodColor(); c[0] *= 1.3;
+      part({ x: x + rr(-0.05, 0.05), y: y + rr(-0.05, 0.05), z: z + rr(-0.05, 0.05), vx: dx * rr(0.3, 1) + rr(-0.3, 0.3), vy: rr(0, 0.4), vz: dy * rr(0.3, 1) + rr(-0.3, 0.3),
+        s: rr(0.04, 0.07), grow: rr(0.25, 0.45), c, kind: 'mist', tex: 'mist', blend: true, a: 0.75, life: 0.45, life0: 0.45, grav: 0 });
     }
     // кристальная крошка
     for (let i = 0; i < Math.max(1, n / 6); i++) {
@@ -1261,24 +1414,25 @@ void main() {
   // мутанта разрывает: куски его же картинки, кровь, кристаллы, вспышка
   function gib(e, dx, dy) {
     e.st = 'gone';
+    faceMood('grin', 1.3);
     const name = e.def.name + '-walk', tt = TEX[name], hgt = tt.h * e.def.upp;
     const k = goreK();
     SFX.gib();
     light(e.x, 0.5, e.y, 3.5, [0.4, 1.4, 0.5], 0.35);
     G.shake = Math.max(G.shake, 0.35);
-    const chunks = Math.round(16 * k);
+    const chunks = Math.round(18 * k);
     for (let i = 0; i < chunks; i++) {
-      const cw = rr(0.15, 0.3), chh = rr(0.1, 0.22);
-      const u0 = rr(0.15, 0.85 - cw), v0 = rr(0.05, 0.9 - chh);
-      const sp = rr(1.5, 5);
-      part({ x: e.x, y: rr(0.15, hgt * 0.9), z: e.y, vx: dx * sp + rr(-2, 2), vy: rr(1, 4), vz: dy * sp + rr(-2, 2),
-        s: rr(0.05, 0.1), tex: name, u0, v0, u1: u0 + cw, v1: v0 + chh, c: [1, 1, 1, 0], kind: 'gib', life: 30, bounce: 0.25 });
+      // куски одежды/тела этого мутанта и просто мясо — с рваными краями
+      const tex = rnd() < 0.62 ? 'gib-' + e.def.name + '-' + ((rnd() * 8) | 0) : 'meat-' + ((rnd() * 6) | 0);
+      const sp = rr(1.5, 5.5);
+      part({ x: e.x, y: rr(0.15, hgt * 0.9), z: e.y, vx: dx * sp + rr(-2.2, 2.2), vy: rr(1, 4.2), vz: dy * sp + rr(-2.2, 2.2),
+        s: rr(0.035, 0.075), tex, c: [1, 1, 1, 0], kind: 'gib', life: 40, bounce: 0.22 });
     }
     for (let i = 0; i < 10; i++) {
       part({ x: e.x, y: rr(0.2, hgt), z: e.y, vx: rr(-3, 3) + dx * 2, vy: rr(1, 4), vz: rr(-3, 3) + dy * 2, s: rr(0.02, 0.045), c: [0.7, 1, 0.7, 1], tex: 'shard', kind: 'crystal', life: 30, bounce: 0.45 });
     }
     bloodBurst(e.x, hgt * 0.5, e.y, dx, dy, 60, 1.3);
-    if (k) { bloodDecal(e.x, 0, e.y, [0, 1, 0], rr(0.5, 0.7)); bloodDecal(e.x + dx * 0.4, 0, e.y + dy * 0.4, [0, 1, 0], rr(0.3, 0.5)); }
+    if (k) { bloodDecal(e.x, 0, e.y, [0, 1, 0], rr(0.55, 0.75), true); bloodDecal(e.x + dx * 0.4, 0, e.y + dy * 0.4, [0, 1, 0], rr(0.3, 0.5), true); }
   }
 
   function ejectCasing(shell) {
@@ -1289,12 +1443,24 @@ void main() {
   }
 
   function updateEffects(dt) {
+    // лужи растекаются
+    for (const d of G.decals) if (d.s < d.st) d.s = Math.min(d.st, d.s + dt * d.st * 0.45);
     const parts = G.parts;
     for (let i = parts.length - 1; i >= 0; i--) {
       const p = parts[i];
       p.life -= dt;
       if (p.life <= 0) { parts.splice(i, 1); continue; }
+      if (p.kind === 'mist') {
+        const k = p.life / p.life0;
+        p.s += p.grow * dt; p.a = 0.75 * k;
+        p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+        continue;
+      }
       if (p.rest) continue;
+      // летящий кусок оставляет капли
+      if (p.kind === 'gib' && goreK() && rnd() < dt * 14) {
+        part({ x: p.x, y: p.y, z: p.z, vx: p.vx * 0.3, vy: p.vy * 0.3, vz: p.vz * 0.3, s: rr(0.005, 0.01), c: bloodColor(), kind: 'blood', tex: 'drop', blend: true, a: 1, life: 1.5, grav: 7 });
+      }
       const ox = p.x, oz = p.z;
       p.vy -= p.grav * dt;
       p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
@@ -1305,7 +1471,7 @@ void main() {
         if (p.kind === 'blood') {
           const wx = hitX ? (p.vx > 0 ? Math.floor(p.x) : Math.floor(p.x) + 1) : p.x;
           const wz = hitX ? p.z : (p.vz > 0 ? Math.floor(p.z) : Math.floor(p.z) + 1);
-          if (p.y > 0.02 && p.y < 0.98 && rnd() < 0.6) bloodDecal(wx, p.y, wz, n, rr(0.05, 0.14));
+          if (p.y > 0.02 && p.y < 0.98 && rnd() < (p.s > 0.015 ? 0.85 : 0.35)) bloodDecal(wx, p.y, wz, n, p.s > 0.015 ? rr(0.09, 0.17) : rr(0.05, 0.11));
           parts.splice(i, 1);
           continue;
         }
@@ -1317,7 +1483,7 @@ void main() {
       // пол
       if (p.y < p.s * 0.6) {
         if (p.kind === 'blood') {
-          if (rnd() < 0.5) bloodDecal(p.x, 0, p.z, [0, 1, 0], rr(0.04, 0.12));
+          if (rnd() < (p.s > 0.015 ? 0.7 : 0.25)) bloodDecal(p.x, 0, p.z, [0, 1, 0], p.s > 0.015 ? rr(0.08, 0.15) : rr(0.04, 0.09));
           parts.splice(i, 1);
           continue;
         }
@@ -1418,7 +1584,7 @@ void main() {
     for (let k = G.shots.length - 1; k >= 0; k--) {
       const s = G.shots[k];
       s.x += s.dx * dt; s.y += s.dy * dt; s.life -= dt;
-      if (Math.hypot(s.x - G.px, s.y - G.py) < 0.35) { hurt(s.dmg); G.shots.splice(k, 1); continue; }
+      if (Math.hypot(s.x - G.px, s.y - G.py) < 0.35) { hurt(s.dmg, s.x - s.dx, s.y - s.dy); G.shots.splice(k, 1); continue; }
       if (s.life <= 0 || solidAt(Math.floor(s.x), Math.floor(s.y))) {
         G.shots.splice(k, 1);
         const bx = s.x - s.dx * dt, by = s.y - s.dy * dt;
@@ -1434,6 +1600,7 @@ void main() {
     G.muzzle = Math.max(0, G.muzzle - dt * 6);
     G.shake = Math.max(0, G.shake - dt * 2.2);
     if (G.finT > 0) G.finT = Math.max(0, G.finT - dt);
+    updateFace(dt);
     G.msgT -= dt;
   }
 
@@ -1450,7 +1617,7 @@ void main() {
     else if (kind === 'b') { p.bullets = Math.min(200, p.bullets + 15); p.shells = Math.min(50, p.shells + 4); say('Ящик патронов: 15 патронов 10 мм и 4 заряда дроби'); }
     else if (kind === 'r') { if (p.armor >= 100) return false; p.armor = 100; say('Бронежилет: броня 100%'); }
     else if (kind === 'o') { if (p.hp >= 150) return false; p.hp = Math.min(150, p.hp + 20); say('Баллон кислорода: +20 здоровья (до 150)'); }
-    else if (kind === 'k') { p.key = true; say('Красная карта доступа! Теперь откроется красная дверь'); }
+    else if (kind === 'k') { p.key = true; faceMood('grin', 1.2); say('Красная карта доступа! Теперь откроется красная дверь'); }
     return true;
   }
 
@@ -1620,13 +1787,14 @@ void main() {
         SFX.die(); SFX.shatter();
         const tt = TEX[e.def.name + '-walk'];
         bloodBurst(e.x, tt.h * e.def.upp * 0.5, e.y, dx, dy, 20, 1);
-        if (goreK()) setTimeout(() => { if (G && e.st !== 'gone') bloodDecal(e.x, 0, e.y, [0, 1, 0], rr(0.45, 0.65)); }, 450);
+        if (goreK()) setTimeout(() => { if (G && e.st !== 'gone') bloodDecal(e.x, 0, e.y, [0, 1, 0], rr(0.5, 0.72), true); }, 450);
       }
       if (G.kills === G.total) say('Все мутанты на уровне уничтожены!', 3);
     } else {
       if (e.st === 'idle') wake(e);
       e.stun = 0.18;
       e.pain = 0.28; e.painDir = rnd() < 0.5 ? -1 : 1;
+      if (e.wind > 0 && rnd() < 0.6) e.wind = 0; // боль сбивает замах
       SFX.pain();
       // тяжело ранен — шатается, оглушён: можно добить
       if (!e.stagDone && e.hp <= e.def.hp * 0.42) {
@@ -1638,14 +1806,82 @@ void main() {
     }
   }
 
-  function hurt(dmg) {
+  function hurt(dmg, sx, sy) {
     const p = G.p;
     if (p.armor > 0) { const a = Math.min(p.armor, dmg / 3); p.armor -= a; dmg -= a; }
     p.hp -= dmg;
     G.flashHurt = Math.min(0.8, G.flashHurt + 0.35 + dmg / 60);
     G.shake = Math.max(G.shake, 0.3 + dmg / 40);
     SFX.hurt();
+    // лицо: морщится и смотрит, откуда ударили
+    faceMood('pain', 0.55);
+    if (sx !== undefined) {
+      const dx = sx - G.px, dy = sy - G.py, d = Math.hypot(dx, dy) || 1;
+      const side = (-G.dirY * dx + G.dirX * dy) / d;
+      G.face.look = side > 0.35 ? 1 : side < -0.35 ? -1 : 0;
+      G.face.lookT = 1.4;
+    }
     if (p.hp <= 0) { p.hp = 0; die(); }
+  }
+
+  // ---------- лицо героя ----------
+  function faceMood(m, t) {
+    const f = G.face;
+    // боль важнее ухмылки, ухмылка важнее ярости
+    const prio = { pain: 3, grin: 2, angry: 1 };
+    if (f.modeT > 0 && (prio[f.mode] || 0) > (prio[m] || 0)) return;
+    f.mode = m; f.modeT = t;
+  }
+  function updateFace(dt) {
+    const f = G.face;
+    if (f.modeT > 0) { f.modeT -= dt; if (f.modeT <= 0) f.mode = ''; }
+    f.lookT -= dt;
+    if (f.lookT <= 0) {
+      const r = rnd();
+      f.look = r < 0.25 ? -1 : r < 0.5 ? 1 : 0;
+      f.lookT = rr(0.9, 2.4);
+      f.calm = G.enemies.every(e => e.st !== 'chase') && rnd() < 0.5;
+    }
+    // долгая стрельба — ярость
+    const firing = input.fire || input.keys.has('Space') || input.keys.has('ControlLeft') || input.keys.has('ControlRight');
+    f.hold = firing && !WEAPONS[G.p.weapon].melee ? f.hold + dt : 0;
+    if (f.hold > 1.1) faceMood('angry', 0.3);
+  }
+  function faceImage() {
+    const f = G.face, hp = G.p.hp;
+    if (state === 'dead' || hp <= 0) return 'face-dead';
+    if (f.modeT > 0 && f.mode) return 'face-' + f.mode;
+    if (hp < 25) return 'face-bloody';
+    if (f.look) return f.look < 0 ? 'face-left' : 'face-right';
+    return f.calm && hp > 70 ? 'face-calm' : 'face-center';
+  }
+  // кровь поверх лица: чем меньше здоровья, тем больше (рисунок в долях квадрата лица)
+  function faceBlood(x, y, s, hp, img) {
+    if (img === 'face-dead' || img === 'face-bloody') return;
+    const tier = hp >= 80 ? 0 : hp >= 60 ? 1 : hp >= 42 ? 2 : 3;
+    if (!tier) return;
+    const L = (pts, w, col) => {
+      ctx.strokeStyle = col; ctx.lineWidth = w * s / 64 * 0.75; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.beginPath(); pts.forEach(([px, py], i) => (i ? ctx.lineTo : ctx.moveTo).call(ctx, x + px * s, y + py * s)); ctx.stroke();
+    };
+    const D = (px, py, r, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x + px * s, y + py * s, r * s / 64, 0, 6.283); ctx.fill(); };
+    const red = 'rgba(150,6,8,0.9)', dark = 'rgba(95,0,4,0.85)';
+    // 1: кровь из старого шрама на брови
+    L([[0.655, 0.27], [0.668, 0.38], [0.672, 0.47], [0.67, 0.53]], 2.2, red); D(0.67, 0.54, 1.6, red);
+    if (tier >= 2) {
+      // 2: кровь из носа, синяк на скуле
+      D(0.3, 0.5, 7, 'rgba(90,30,70,0.35)');
+      L([[0.47, 0.565], [0.468, 0.63], [0.47, 0.7]], 2.2, red);
+      L([[0.535, 0.565], [0.54, 0.64], [0.535, 0.72]], 2.4, red); D(0.535, 0.73, 1.6, red);
+    }
+    if (tier >= 3) {
+      // 3: рассечён лоб, кровь по щекам и из угла рта
+      L([[0.36, 0.2], [0.42, 0.24]], 2, dark);
+      L([[0.39, 0.23], [0.38, 0.32], [0.385, 0.44]], 1.8, red);
+      L([[0.3, 0.42], [0.31, 0.55], [0.33, 0.66]], 1.8, red);
+      L([[0.73, 0.5], [0.72, 0.62], [0.7, 0.72]], 2, red);
+      L([[0.42, 0.66], [0.41, 0.74], [0.415, 0.8]], 1.8, red); D(0.415, 0.81, 1.5, red);
+    }
   }
 
   function updateEnemy(e, dt) {
@@ -1676,25 +1912,38 @@ void main() {
     e.growlT -= dt;
     if (e.growlT <= 0 && dist < 11) { e.growlT = 4 + rnd() * 6; atDist(e.x, e.y, () => (isTech ? SFX.growlTech() : SFX.growlAstro())); }
     if (e.stun > 0) { e.stun -= dt; return; }
+    // замах: видно, что сейчас ударит или плюнет — и есть миг, чтобы отскочить
+    if (e.wind > 0) {
+      e.wind -= dt;
+      if (e.wind > 0) return;
+      if (e.windKind === 'melee') {
+        if (dist < (isTech ? 1.25 : 1.5)) { hurt(isTech ? 7 + rnd() * 4 : 14 + rnd() * 8, e.x, e.y); SFX.claw(); }
+        else atDist(e.x, e.y, () => SFX.swing());   // промахнулся — свист клинка
+        e.atk = 0.22;
+      } else {
+        const sp = 5;
+        const a = (rnd() - 0.5) * 0.12;
+        const ux = dx / dist, uy = dy / dist;
+        const vx = ux * Math.cos(a) - uy * Math.sin(a), vy = ux * Math.sin(a) + uy * Math.cos(a);
+        G.shots.push({ x: e.x + vx * 0.4, y: e.y + vy * 0.4, dx: vx * sp, dy: vy * sp, dmg: 6 + rnd() * 5, life: 4 });
+        light(e.x, 0.5, e.y, 2.5, [0.3, 1.2, 0.4], 0.2);
+        atDist(e.x, e.y, () => SFX.spit());
+        e.stun = 0.25; e.atk = 0.2;
+      }
+      return;
+    }
     if (dist < (isTech ? 0.95 : 1.15) && e.cd <= 0) {
-      e.atk = 0.3;
-      hurt(isTech ? 7 + rnd() * 4 : 14 + rnd() * 8);
-      SFX.claw(); e.cd = isTech ? 1.1 : 1.0;
+      e.wind = isTech ? 0.22 : 0.34; e.windKind = 'melee';
+      e.cd = isTech ? 1.1 : 1.05;
+      if (!isTech) atDist(e.x, e.y, () => SFX.growlAstro());
       return;
     }
     // техник иногда замирает, покачиваясь, — как будто прислушивается
     if (e.pauseT > 0) { e.pauseT -= dt; return; }
     if (isTech && dist > 3 && rnd() < dt * 0.15) { e.pauseT = 0.4 + rnd() * 0.8; return; }
     if (isTech && e.see && dist > 1.8 && dist < 9 && e.cd <= 0) {
-      const sp = 5;
-      const a = (rnd() - 0.5) * 0.12;
-      const ux = dx / dist, uy = dy / dist;
-      const vx = ux * Math.cos(a) - uy * Math.sin(a), vy = ux * Math.sin(a) + uy * Math.cos(a);
-      G.shots.push({ x: e.x + vx * 0.4, y: e.y + vy * 0.4, dx: vx * sp, dy: vy * sp, dmg: 6 + rnd() * 5, life: 4 });
-      light(e.x, 0.5, e.y, 2.5, [0.3, 1.2, 0.4], 0.2);
-      atDist(e.x, e.y, () => SFX.spit());
+      e.wind = 0.32; e.windKind = 'spit';
       e.cd = 1.7 + rnd() * 1.2;
-      e.stun = 0.35; e.atk = 0.35;
       return;
     }
     if (dist > 0.8) {
