@@ -237,8 +237,11 @@
 
   // ---------- звуки (синтез) ----------
   let actx = null, noiseBuf = null, master = null;
+  let VS = 1; // громкость текущего звука (тише — если источник далеко)
+  // Sound объявлен в index.html через const — это не свойство window, поэтому проверяем через typeof
+  const soundOn = () => typeof Sound === 'undefined' || !Sound.isOn || Sound.isOn();
   function audio() {
-    if (!(window.Sound && Sound.isOn())) return null;
+    if (!soundOn()) return null;
     if (!actx) {
       const C = window.AudioContext || window.webkitAudioContext;
       if (!C) return null;
@@ -254,6 +257,7 @@
     return actx;
   }
   function env(g, t, a, peak, dur) {
+    peak = Math.max(0.0002, peak * VS);
     g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(peak, t + a);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
@@ -277,10 +281,31 @@
     o.connect(g); g.connect(master);
     o.start(t); o.stop(t + dur + 0.05);
   }
+  // звук из точки уровня: чем дальше, тем тише
+  function atDist(x, y, fn, range) {
+    if (!G) return;
+    const d = Math.hypot(x - G.px, y - G.py);
+    const k = 1 - d / (range || 14);
+    if (k <= 0.03) return;
+    VS = k * k;
+    try { fn(); } finally { VS = 1; }
+  }
   let lastTink = 0;
   const SFX = {
-    pistol() { noise(0.16, 'bandpass', 1900, 0.9, 0, 0.7); tone('sine', 160, 45, 0.16, 0.6); },
-    shotgun() { noise(0.42, 'lowpass', 1600, 1.1); tone('sine', 110, 35, 0.3, 0.8); },
+    // выстрел: резкий щелчок + «тело» + низкий удар + эхо станции
+    pistol() {
+      noise(0.05, 'highpass', 3000, 0.9);
+      noise(0.18, 'bandpass', 1100, 1.2, 0, 0.8);
+      tone('triangle', 190, 55, 0.14, 0.7);
+      noise(0.55, 'lowpass', 700, 0.22, 0.05);
+    },
+    shotgun() {
+      noise(0.07, 'highpass', 2200, 1.0);
+      noise(0.45, 'lowpass', 1400, 1.5);
+      tone('triangle', 120, 32, 0.32, 1.0);
+      tone('sine', 70, 28, 0.45, 0.8);
+      noise(0.9, 'lowpass', 450, 0.35, 0.08);
+    },
     empty() { noise(0.03, 'highpass', 4000, 0.3); },
     techAlert() { tone('sawtooth', 120, 70, 0.5, 0.18); tone('sawtooth', 126, 64, 0.5, 0.12); },
     astroAlert() { tone('sawtooth', 70, 45, 0.7, 0.2); tone('square', 900, 300, 0.4, 0.04, 0.05); },
@@ -291,7 +316,28 @@
     splat() { noise(0.12, 'lowpass', 700, 0.35); },
     flesh() { noise(0.08, 'bandpass', 600, 0.45, 0, 1.2); },
     ricochet() { tone('sine', 2400 + rnd() * 1500, 900, 0.12, 0.05); },
-    tink() { const t = performance.now(); if (t - lastTink < 60) return; lastTink = t; tone('sine', 3200 + rnd() * 1500, 2600, 0.06, 0.05); tone('sine', 5200, 4000, 0.04, 0.025, 0.05); },
+    // гильза об пол: звонкий металлический «дзынь»
+    tink(heavy) {
+      const t = performance.now(); if (t - lastTink < 45) return; lastTink = t;
+      const f = heavy ? 1700 + rnd() * 600 : 3600 + rnd() * 1800;
+      tone('sine', f, f * 0.97, 0.16, heavy ? 0.12 : 0.14);
+      tone('sine', f * 2.76, f * 2.7, 0.08, 0.06);
+      noise(0.02, 'highpass', 6000, 0.12);
+    },
+    // шаги мутантов
+    stepTech() { noise(0.09, 'lowpass', 350, 0.5); noise(0.05, 'bandpass', 900, 0.15, 0.02, 2); },
+    stepAstro() { tone('sine', 75, 38, 0.18, 0.7); noise(0.12, 'lowpass', 260, 0.6); tone('square', 420, 380, 0.05, 0.05, 0.01); },
+    // рычание и стоны
+    growlTech() {
+      const b = 95 + rnd() * 40;
+      tone('sawtooth', b, b * 0.75, 0.9, 0.12); tone('sawtooth', b * 1.02, b * 0.7, 0.9, 0.09);
+      noise(0.8, 'bandpass', 500, 0.12, 0, 3);
+    },
+    growlAstro() {
+      tone('sawtooth', 60, 42, 1.1, 0.16); tone('square', 63, 45, 1.1, 0.05);
+      noise(0.6, 'bandpass', 2200, 0.12, 0.1, 6); // хрип сломанной рации шлема
+      noise(0.3, 'bandpass', 1500, 0.1, 0.6, 6);
+    },
     spit() { noise(0.25, 'bandpass', 1200, 0.35, 0, 2); tone('sine', 700, 300, 0.2, 0.06); },
     claw() { noise(0.12, 'highpass', 2200, 0.5); },
     hurt() { tone('square', 150, 80, 0.22, 0.2); noise(0.1, 'lowpass', 600, 0.4); },
@@ -423,7 +469,8 @@
         else if (ch === 'P') { px = x + 0.5; py = y + 0.5; }
         else if (ENEMY[ch]) {
           const e = ENEMY[ch];
-          enemies.push({ kind: ch, def: e, x: x + 0.5, y: y + 0.5, hp: e.hp, st: 'idle', t: 0, cd: 1 + rnd(), flash: 0, anim: rnd() * 6, see: 0, seeT: 0, kx: 0, ky: 0, stun: 0 });
+          enemies.push({ kind: ch, def: e, x: x + 0.5, y: y + 0.5, hp: e.hp, st: 'idle', t: 0, cd: 1 + rnd(), flash: 0, anim: rnd() * 6, see: 0, seeT: 0, kx: 0, ky: 0, stun: 0,
+            phase: rnd() * 6, mv: 0, atk: 0, pain: 0, painDir: 1, seed: rnd() * 100, growlT: 2 + rnd() * 6, stepS: 0, pauseT: 0 });
         } else if (ITEM[ch]) items.push({ kind: ch, x: x + 0.5, y: y + 0.5 });
       }
     }
@@ -784,17 +831,70 @@ void main() {
         const c = [1, 1, 1, emis || 0];
         quad([x - rx * w2, lift, z - rz * w2], [x + rx * w2, lift, z + rz * w2], [x + rx * w2, lift + h, z + rz * w2], [x - rx * w2, lift + h, z - rz * w2], u0, 0, u1, 1, [0, 1, 0], c);
       };
+      // мутант: картинка натянута на сетку, и сетка гнётся — шаги, руки, дыхание, рывок, боль
+      const enemyMesh = (en, name, h, aspect) => {
+        const w = h * aspect;
+        seg(name, 1, 0, en.flash > 0 ? 0.65 : 0);
+        const isTech = en.kind === 't';
+        const ph = en.phase, mv = en.mv;
+        const sP = Math.sin(ph), cP = Math.cos(ph);
+        const atk = en.atk > 0 ? Math.sin((1 - en.atk / 0.32) * Math.PI) : 0;
+        const pain = en.pain > 0 ? Math.sin(en.pain / 0.28 * Math.PI) : 0;
+        const idle = en.st === 'idle';
+        const breathe = Math.sin(g.time * (idle ? 1.6 : 2.6) + en.seed) * (idle ? 0.014 : 0.01);
+        const sway = Math.sin(g.time * 0.7 + en.seed) * (idle ? 0.02 : 0);
+        const hipY = isTech ? 0.56 : 0.58;     // где кончается корпус и начинаются ноги (доля высоты сверху)
+        const bounce = Math.abs(cP) * mv * (isTech ? 0.025 : 0.035) * h;
+        const P = (u, v) => {
+          let lx = (u - 0.5) * w, ly = (1 - v) * h;
+          const side = u < 0.5 ? 1 : -1;
+          const top = Math.max(0, (hipY - v) / hipY);           // 0 у бёдер … 1 у макушки
+          if (v > hipY) {
+            // ноги: поочерёдно поднимаются и сгибаются
+            const k = (v - hipY) / (1 - hipY);
+            const lift = Math.max(0, side * sP) * mv;
+            ly += lift * (isTech ? 0.1 : 0.08) * h * k;
+            lx -= side * lift * 0.025 * h * k;
+          } else {
+            ly += bounce * (0.4 + 0.6 * top);
+          }
+          // корпус переваливается над опорной ногой
+          lx += sP * mv * (isTech ? 0.05 : 0.03) * h * (0.3 + top);
+          // техник ещё и заваливается вбок, как будто одна нога не слушается
+          if (isTech) lx += Math.sin(ph * 0.5 + 1) * mv * 0.03 * h * top;
+          // руки болтаются в такт шагам
+          const armZone = Math.abs(u - 0.5) > 0.27 && v > 0.2 && v < 0.68;
+          if (armZone) {
+            const a = (v - 0.2) / 0.48;
+            lx += side * Math.sin(ph + (u < 0.5 ? 0 : Math.PI)) * mv * 0.035 * h * a;
+            ly += Math.cos(ph * 2) * mv * 0.01 * h * a;
+          }
+          // дыхание и покачивание на месте
+          ly += breathe * h * top;
+          lx += sway * h * top;
+          // атака: рывок — верх раздувается и подаётся вниз-вперёд
+          if (atk) { lx *= 1 + atk * 0.16 * top; ly -= atk * 0.06 * h * top; }
+          // попадание: дёргается вбок и назад
+          if (pain) { lx += pain * 0.07 * h * top * en.painDir; ly += pain * 0.025 * h * top; }
+          return [en.x + rx * lx, ly, en.y + rz * lx];
+        };
+        const C = 5, R = 10;
+        const c = [1, 1, 1, 0];
+        for (let r = 0; r < R; r++) {
+          const v0 = r / R, v1 = (r + 1) / R;
+          for (let q = 0; q < C; q++) {
+            const u0 = q / C, u1 = (q + 1) / C;
+            quad(P(u0, v1), P(u1, v1), P(u1, v0), P(u0, v0), u0, v0, u1, v1, [0, 1, 0], c);
+          }
+        }
+      };
       for (const it of g.items) { const d = ITEM[it.kind], tt = TEX[d.tex]; if (tt) sprite(d.tex, it.x, it.y, tt.h * d.upp, 0, false, false, it.kind === 'k' ? 0.4 : 0); }
       for (const en of g.enemies) {
         if (en.st === 'gone') continue;
         const fr = en.st === 'dead' ? 'dead' : en.st === 'dying' ? 'dying' : 'walk';
         const tt = TEX[en.def.name + '-' + fr]; if (!tt) continue;
-        let lift = 0, sq = 1, mir = false;
-        if (fr === 'walk' && en.st === 'chase') {
-          lift = Math.abs(Math.sin(en.anim * 5)) * 0.03; sq = 1 + Math.sin(en.anim * 10) * 0.02;
-          mir = en.def.name === 'tech' && Math.sin(en.anim * 5) < 0;
-        }
-        sprite(en.def.name + '-' + fr, en.x, en.y, tt.h * en.def.upp * sq, lift, mir, en.flash > 0, 0);
+        if (fr === 'walk') enemyMesh(en, en.def.name + '-walk', tt.h * en.def.upp, tt.w / tt.h);
+        else sprite(en.def.name + '-' + fr, en.x, en.y, tt.h * en.def.upp, 0, false, en.flash > 0, 0);
       }
       // частицы и осколки — повёрнуты к камере
       const bill = (name, x, y, z, s, c, u0, v0, u1, v1) => {
@@ -1169,8 +1269,8 @@ void main() {
         }
         if (p.kind === 'spark') { parts.splice(i, 1); continue; }
         p.y = p.s * 0.6;
-        if (Math.abs(p.vy) > 0.6 && (p.kind === 'shell' || p.kind === 'crystal')) SFX.tink();
-        if (Math.abs(p.vy) > 0.6 && p.kind === 'gib') SFX.splat();
+        if (Math.abs(p.vy) > 0.6 && (p.kind === 'shell' || p.kind === 'crystal')) { const vol = Math.min(1, Math.abs(p.vy) / 3); atDist(p.x, p.z, () => { VS *= vol; SFX.tink(p.tex === 'shell'); }, 10); }
+        if (Math.abs(p.vy) > 0.6 && p.kind === 'gib') atDist(p.x, p.z, () => SFX.splat(), 10);
         p.vy = -p.vy * p.bounce; p.vx *= 0.55; p.vz *= 0.55;
         if (Math.abs(p.vy) < 0.4) {
           p.rest = true; p.vy = 0;
@@ -1385,7 +1485,7 @@ void main() {
   function wake(e) {
     if (e.st !== 'idle') return;
     e.st = 'chase'; e.cd = 0.6 + rnd() * 0.8;
-    SFX[e.def.alert]();
+    atDist(e.x, e.y, () => SFX[e.def.alert](), 16);
   }
 
   function damage(e, dmg, dx, dy, close) {
@@ -1409,6 +1509,7 @@ void main() {
     } else {
       if (e.st === 'idle') wake(e);
       e.stun = 0.18;
+      e.pain = 0.28; e.painDir = rnd() < 0.5 ? -1 : 1;
       SFX.pain();
     }
   }
@@ -1434,16 +1535,26 @@ void main() {
     const dx = G.px - e.x, dy = G.py - e.y, dist = Math.hypot(dx, dy);
     e.seeT -= dt;
     if (e.seeT <= 0) { e.see = dist < 16 && sight(e.x, e.y, G.px, G.py); e.seeT = 0.2; }
+    if (e.atk > 0) e.atk = Math.max(0, e.atk - dt);
+    if (e.pain > 0) e.pain = Math.max(0, e.pain - dt);
+    e.mv = Math.max(0, e.mv - dt * 3);
     if (e.st === 'idle') { if (e.see && dist < 13) wake(e); return; }
     e.anim += dt;
     e.cd -= dt;
-    if (e.stun > 0) { e.stun -= dt; return; }
     const isTech = e.kind === 't';
+    // рычание время от времени
+    e.growlT -= dt;
+    if (e.growlT <= 0 && dist < 11) { e.growlT = 4 + rnd() * 6; atDist(e.x, e.y, () => (isTech ? SFX.growlTech() : SFX.growlAstro())); }
+    if (e.stun > 0) { e.stun -= dt; return; }
     if (dist < (isTech ? 0.95 : 1.15) && e.cd <= 0) {
+      e.atk = 0.3;
       hurt(isTech ? 7 + rnd() * 4 : 14 + rnd() * 8);
       SFX.claw(); e.cd = isTech ? 1.1 : 1.0;
       return;
     }
+    // техник иногда замирает, покачиваясь, — как будто прислушивается
+    if (e.pauseT > 0) { e.pauseT -= dt; return; }
+    if (isTech && dist > 3 && rnd() < dt * 0.15) { e.pauseT = 0.4 + rnd() * 0.8; return; }
     if (isTech && e.see && dist > 1.8 && dist < 9 && e.cd <= 0) {
       const sp = 5;
       const a = (rnd() - 0.5) * 0.12;
@@ -1451,15 +1562,35 @@ void main() {
       const vx = ux * Math.cos(a) - uy * Math.sin(a), vy = ux * Math.sin(a) + uy * Math.cos(a);
       G.shots.push({ x: e.x + vx * 0.4, y: e.y + vy * 0.4, dx: vx * sp, dy: vy * sp, dmg: 6 + rnd() * 5, life: 4 });
       light(e.x, 0.5, e.y, 2.5, [0.3, 1.2, 0.4], 0.2);
-      SFX.spit();
+      atDist(e.x, e.y, () => SFX.spit());
       e.cd = 1.7 + rnd() * 1.2;
-      e.stun = 0.25;
+      e.stun = 0.35; e.atk = 0.35;
       return;
     }
     if (dist > 0.8) {
-      const step = e.def.speed * dt;
+      // походка: шаг за шагом, скорость меняется в такт шагам
+      const prevS = Math.sin(e.phase);
+      if (isTech) {
+        e.phase += dt * 5.2 * (1 + 0.55 * Math.sin(e.phase)); // хромает рывками
+      } else {
+        e.phase += dt * 6.8; // тяжёлый ровный шаг
+      }
+      const s = Math.sin(e.phase);
+      const gait = isTech ? 0.35 + 1.0 * Math.abs(s) : 0.7 + 0.45 * Math.abs(s);
+      const step = e.def.speed * gait * dt;
+      // не прямо в лоб — петляет, пока далеко
+      const weave = dist > 2 ? Math.sin(G.time * (isTech ? 0.9 : 1.4) + e.seed) * (isTech ? 0.35 : 0.5) : 0;
+      const cw = Math.cos(weave), sw = Math.sin(weave);
+      const ux = dx / dist, uy = dy / dist;
+      const mx = ux * cw - uy * sw, my = ux * sw + uy * cw;
       const ox = e.x, oy = e.y;
-      moveBody(e, dx / dist * step, dy / dist * step, 0.28);
+      moveBody(e, mx * step, my * step, 0.28);
+      e.mv = 1;
+      // шаг: нога коснулась пола
+      if ((prevS < 0) !== (s < 0)) {
+        atDist(e.x, e.y, () => (isTech ? SFX.stepTech() : SFX.stepAstro()), isTech ? 7 : 11);
+        if (!isTech && dist < 3) G.shake = Math.max(G.shake, 0.12);
+      }
       if (Math.abs(e.x - ox) + Math.abs(e.y - oy) < step * 0.3) {
         const fx = Math.floor(e.x + Math.sign(dx) * 0.6), fy = Math.floor(e.y + Math.sign(dy) * 0.6);
         for (const [cx, cy] of [[fx, Math.floor(e.y)], [Math.floor(e.x), fy]]) {
@@ -1773,8 +1904,13 @@ void main() {
   function frame(t) {
     raf = null;
     if (!open) return;
-    const dt = Math.min(0.05, (t - lastT) / 1000 || 0);
+    const dt = Math.max(0, Math.min(0.05, (t - lastT) / 1000 || 0));
     lastT = t;
+    step(dt);
+    raf = requestAnimationFrame(frame);
+  }
+
+  function step(dt) {
     ctx.setTransform(K, 0, 0, K, 0, 0);
     if (G && artReady) {
       if (state === 'play') update(dt);
@@ -1791,7 +1927,6 @@ void main() {
     } else if (artReady) {
       drawTitleBack();
     }
-    raf = requestAnimationFrame(frame);
   }
 
   function drawTitleBack() {
@@ -1833,5 +1968,5 @@ void main() {
     else close();
   }
 
-  window.LunarGame = { open: openGame, close, back, isOpen: () => open, _debug: () => ({ G, state, LEVELS, input, saved, gl3d, K }) };
+  window.LunarGame = { open: openGame, close, back, isOpen: () => open, _debug: () => ({ G, state, LEVELS, input, saved, gl3d, K, step }) };
 })();
