@@ -520,6 +520,112 @@ input { user-select: text; -webkit-user-select: text; }
   .ex-folder-select { flex-basis: 120px; }
 }
 
+/* ---------- Игра «Минёр» ---------- */
+#deskMiner { top: calc(max(10px, env(safe-area-inset-top)) + 84px); }
+#minerWin { padding: 8px; }
+.modal .win95-window.miner {
+  width: auto;
+  max-width: 100%;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.mn-body { display: flex; flex-direction: column; gap: 6px; padding: 6px; min-height: 0; flex: 1; }
+.mn-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px;
+  border: 2px solid;
+  border-color: #808080 #ffffff #ffffff #808080;
+}
+.mn-led {
+  min-width: 52px;
+  padding: 3px 4px;
+  background: #000;
+  color: #ff2020;
+  font: bold 22px/1 "Courier New", monospace;
+  letter-spacing: 1px;
+  text-align: center;
+  border: 1px solid;
+  border-color: #808080 #ffffff #ffffff #808080;
+}
+.mn-face {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #c0c0c0;
+  border: 2px solid;
+  border-color: #ffffff #808080 #808080 #ffffff;
+  cursor: pointer;
+}
+.mn-face:active { border-color: #808080 #ffffff #ffffff #808080; }
+.mn-face svg { display: block; }
+.mn-face .f-oh, .mn-face .f-cool, .mn-face .f-dead { display: none; }
+.mn-face[data-s="oh"] .f-smile { display: none; }
+.mn-face[data-s="oh"] .f-oh { display: inline; }
+.mn-face[data-s="cool"] .f-eyes { display: none; }
+.mn-face[data-s="cool"] .f-cool { display: inline; }
+.mn-face[data-s="dead"] .f-eyes, .mn-face[data-s="dead"] .f-smile { display: none; }
+.mn-face[data-s="dead"] .f-dead { display: inline; }
+.mn-wrap {
+  align-self: center;
+  max-width: 100%;
+  min-height: 0;
+  overflow: auto;
+  border: 3px solid;
+  border-color: #808080 #ffffff #ffffff #808080;
+}
+.mn-board {
+  --mc: 26px;
+  display: grid;
+  grid-auto-rows: var(--mc);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+.mn-cell {
+  box-sizing: border-box;
+  width: var(--mc);
+  height: var(--mc);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #c0c0c0 no-repeat center / 72%;
+  border: max(2px, calc(var(--mc) * .11)) solid;
+  border-color: #ffffff #808080 #808080 #ffffff;
+  font: bold calc(var(--mc) * .62)/1 Tahoma, Verdana, sans-serif;
+  cursor: default;
+}
+.mn-cell.open { border-width: 0 1px 1px 0; border-color: #808080; }
+.mn-cell.n1 { color: #0000ff; }
+.mn-cell.n2 { color: #008000; }
+.mn-cell.n3 { color: #ff0000; }
+.mn-cell.n4 { color: #000080; }
+.mn-cell.n5 { color: #800000; }
+.mn-cell.n6 { color: #008080; }
+.mn-cell.n7 { color: #000000; }
+.mn-cell.n8 { color: #808080; }
+.mn-cell.flag {
+  background-size: 88%;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M9.5 1.5v10.5' stroke='%23000' stroke-width='2'/%3E%3Cpath d='M10 1.2 2 5.2l8 4z' fill='%23e00000'/%3E%3Cpath d='M6 11.5h7v1.8H6z' fill='%23000'/%3E%3Cpath d='M3 13h13v2.2H3z' fill='%23000'/%3E%3C/svg%3E");
+}
+.mn-cell.mine, .mn-cell.wrong {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 1.5v13M1.5 8h13M3.4 3.4l9.2 9.2M12.6 3.4l-9.2 9.2' stroke='%23000' stroke-width='1.4'/%3E%3Ccircle cx='8' cy='8' r='4.6' fill='%23000'/%3E%3Crect x='5.6' y='5.6' width='2' height='2' fill='%23fff'/%3E%3C/svg%3E");
+}
+.mn-cell.wrong {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M2 2l12 12M14 2 2 14' stroke='%23e00000' stroke-width='1.8'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 1.5v13M1.5 8h13M3.4 3.4l9.2 9.2M12.6 3.4l-9.2 9.2' stroke='%23000' stroke-width='1.4'/%3E%3Ccircle cx='8' cy='8' r='4.6' fill='%23000'/%3E%3Crect x='5.6' y='5.6' width='2' height='2' fill='%23fff'/%3E%3C/svg%3E");
+}
+.mn-cell.hit { background-color: #ff0000; }
+.mn-tools { display: flex; justify-content: center; }
+.mn-tools .win95-button { min-width: 0; }
+.miner .win95-statusbar-field:first-child { flex: 1; }
+
 /* ---------- ScanDisk ---------- */
 .modal .win95-window.scan { width: min(480px, 100%); max-width: none; }
 .sd-body { display: grid; gap: 10px; padding: 12px; }
@@ -984,6 +1090,7 @@ input { user-select: text; -webkit-user-select: text; }
 </div>
 <div class="desktop" id="desktop">
 <div class="desk-icon" id="deskVault" role="button" aria-label="Сейф"><svg viewBox="0 0 32 32" width="38" height="38"><rect x="3" y="4" width="26" height="23" fill="#8a8a8a" stroke="#000"/><rect x="5.5" y="6.5" width="21" height="18" fill="#c0c0c0" stroke="#404040"/><circle cx="14" cy="15.5" r="5" fill="#e8e8e8" stroke="#000"/><circle cx="14" cy="15.5" r="1.4" fill="#000"/><path d="M14 10.5v2M14 18.5v2M9 15.5h2M17 15.5h2" stroke="#000"/><rect x="22" y="12" width="2.5" height="7" fill="#404040"/><rect x="6" y="27" width="4" height="2" fill="#000"/><rect x="22" y="27" width="4" height="2" fill="#000"/></svg><span>Сейф</span></div>
+<div class="desk-icon" id="deskMiner" role="button" aria-label="Минёр"><svg viewBox="0 0 32 32" width="38" height="38"><path d="M16 3v26M3 16h26M6.8 6.8l18.4 18.4M25.2 6.8 6.8 25.2" stroke="#000" stroke-width="2.4" stroke-linecap="round"/><circle cx="16" cy="16" r="9" fill="#202020" stroke="#000"/><circle cx="16" cy="16" r="7.5" fill="#3a3a3a"/><rect x="11" y="11" width="4" height="4" fill="#fff"/><path d="M22 4.5l2.5-2.5M24 6.5l3-1M21 3l.5-2" stroke="#ff4000" stroke-width="1.6" stroke-linecap="round"/></svg><span>Минёр</span></div>
 <div class="win95-window" id="mainWindow">
   <div class="win95-titlebar">
     <span>🔐 Password Generator</span>
@@ -1055,7 +1162,7 @@ input { user-select: text; -webkit-user-select: text; }
   </div>
   <div class="win95-statusbar">
     <div class="win95-statusbar-field" id="strengthField">Готово</div>
-    <div class="win95-statusbar-field">v3.1</div>
+    <div class="win95-statusbar-field">v3.2</div>
   </div>
 </div>
 </div>
@@ -1066,6 +1173,7 @@ input { user-select: text; -webkit-user-select: text; }
     <div class="menu-popup start-menu">
       <div class="menu-item" data-action="restore">🔐 Password Generator</div>
       <div class="menu-item" data-action="vault">🔐 Сейф</div>
+      <div class="menu-item" data-action="miner">💣 Минёр</div>
       <div class="menu-item" data-action="sound">Звук</div>
       <div class="menu-item" data-action="helper">Помощник</div>
       <div class="menu-item" data-action="about">❓ О программе...</div>
@@ -1089,7 +1197,7 @@ input { user-select: text; -webkit-user-select: text; }
       <div class="about-icon">🔐</div>
       <div class="about-text">
         <p><b>Password Generator 95</b></p>
-        <p>Версия 3.1</p>
+        <p>Версия 3.2</p>
         <p>Пароли создаются на этом устройстве и никуда не отправляются.</p>
         <div class="about-line"></div>
         <p>Физической памяти свободно: 640 КБ</p>
@@ -1098,6 +1206,58 @@ input { user-select: text; -webkit-user-select: text; }
     </div>
     <div class="win95-btn-group" style="margin: 0 0 12px;">
       <button class="win95-button" id="aboutOk">OK</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="minerWin">
+  <div class="win95-window miner">
+    <div class="win95-titlebar">
+      <span>💣 Минёр</span>
+      <div class="win95-titlebar-buttons">
+        <span class="win95-btn-sm" id="mnClose" role="button" aria-label="Закрыть">✕</span>
+      </div>
+    </div>
+    <div class="menubar">
+      <div class="menubar-item" data-menu><span>Игра</span>
+        <div class="menu-popup">
+          <div class="menu-item" data-action="mnNew">Новая игра</div>
+          <div class="menu-sep"></div>
+          <div class="menu-item" data-action="mnL0">Новичок</div>
+          <div class="menu-item" data-action="mnL1">Любитель</div>
+          <div class="menu-item" data-action="mnL2">Профи</div>
+          <div class="menu-sep"></div>
+          <div class="menu-item" data-action="mnBest">Рекорды...</div>
+          <div class="menu-sep"></div>
+          <div class="menu-item" data-action="mnClose">Закрыть</div>
+        </div>
+      </div>
+      <div class="menubar-item" data-menu><span>Справка</span>
+        <div class="menu-popup">
+          <div class="menu-item" data-action="mnHelp">Как играть...</div>
+        </div>
+      </div>
+    </div>
+    <div class="mn-body">
+      <div class="mn-panel">
+        <div class="mn-led" id="mnMines" title="Осталось мин">010</div>
+        <button class="mn-face" id="mnFace" data-s="ok" aria-label="Новая игра"><svg viewBox="0 0 32 32" width="28" height="28">
+          <circle cx="16" cy="16" r="13" fill="#f4c430" stroke="#8a6d00" stroke-width="2"/>
+          <circle cx="16" cy="16" r="10" fill="#ffd95a"/>
+          <g class="f-eyes"><circle cx="11.5" cy="13" r="2.2" fill="#000"/><circle cx="20.5" cy="13" r="2.2" fill="#000"/></g>
+          <path class="f-smile" d="M10.5 19 Q16 24 21.5 19" fill="none" stroke="#000" stroke-width="1.6" stroke-linecap="round"/>
+          <circle class="f-oh" cx="16" cy="21" r="2.4" fill="none" stroke="#000" stroke-width="1.6"/>
+          <g class="f-cool"><path d="M6 12.5h20" stroke="#000" stroke-width="1.4"/><rect x="7.5" y="11" width="7" height="4.5" rx="1.5" fill="#000"/><rect x="17.5" y="11" width="7" height="4.5" rx="1.5" fill="#000"/><path d="M10.5 19 Q16 24 21.5 19" fill="none" stroke="#000" stroke-width="1.6" stroke-linecap="round"/></g>
+          <g class="f-dead" fill="none" stroke="#000" stroke-width="1.6" stroke-linecap="round"><path d="M9.5 11l4 4M13.5 11l-4 4M18.5 11l4 4M22.5 11l-4 4"/><path d="M11 22 Q16 18 21 22"/></g>
+        </svg></button>
+        <div class="mn-led" id="mnTime" title="Время, секунд">000</div>
+      </div>
+      <div class="mn-wrap"><div class="mn-board" id="mnBoard"></div></div>
+      <div class="mn-tools"><button class="win95-button" id="mnMode">⛏ Режим: открывать</button></div>
+    </div>
+    <div class="win95-statusbar">
+      <div class="win95-statusbar-field" id="mnStatus">Первый ход всегда безопасный</div>
+      <div class="win95-statusbar-field" id="mnLevel">Новичок</div>
     </div>
   </div>
 </div>
@@ -1419,6 +1579,13 @@ const Sound = (function () {
     pop: () => play([[880, 0, 0.08, 'sine', 0.08], [1320, 0.05, 0.12, 'sine', 0.06]]),
     ding: () => play([[1318.5, 0, 0.5, 'sine', 0.14], [1975.5, 0, 0.35, 'sine', 0.06]]),
     error: () => play([[220, 0, 0.3, 'square', 0.05], [233.08, 0, 0.3, 'square', 0.05]]),
+    tap: () => play([[980, 0, 0.04, 'sine', 0.05]]),
+    boom: () => play([
+      [140, 0.00, 0.35, 'sawtooth', 0.09],
+      [90, 0.04, 0.55, 'square', 0.06],
+      [60, 0.08, 0.9, 'triangle', 0.14],
+      [45, 0.15, 1.1, 'sine', 0.12]
+    ]),
     shutdown: () => play([
       [932.33, 0.00, 0.5, 'sine', 0.10],
       [783.99, 0.22, 0.5, 'sine', 0.10],
@@ -1624,6 +1791,7 @@ function shutDown() {
   about.classList.remove('show');
   Helper.hideBalloon();
   Vault.lock();
+  Miner.close();
   // пароль с экрана убираем
   result.textContent = 'Нажми "Сгенерировать"';
   strengthField.textContent = 'Готово';
@@ -3346,6 +3514,346 @@ const Vault = (function () {
   return { open, lock, saveCurrent, back, isUnlocked: () => !!key };
 })();
 
+// ---------- Игра «Минёр» ----------
+// Классическая логика: открыть все клетки без мин. Мины расставляются
+// после первого хода (через crypto, без Math.random), первый ход всегда безопасный.
+const Miner = (function () {
+  const LEVELS = [
+    { name: 'Новичок', rows: 9, cols: 9, mines: 10 },
+    { name: 'Любитель', rows: 16, cols: 16, mines: 40 },
+    { name: 'Профи', rows: 16, cols: 30, mines: 99 }
+  ];
+  const win = document.getElementById('minerWin');
+  const board = document.getElementById('mnBoard');
+  const minesEl = document.getElementById('mnMines');
+  const timeEl = document.getElementById('mnTime');
+  const face = document.getElementById('mnFace');
+  const modeBtn = document.getElementById('mnMode');
+  const statusEl = document.getElementById('mnStatus');
+  const levelEl = document.getElementById('mnLevel');
+  const saverEl = document.getElementById('screensaver');
+
+  // настройки: уровень и рекорды (секунды) — в localStorage
+  let cfg = { lvl: 0, best: [null, null, null] };
+  try {
+    const s = JSON.parse(localStorage.getItem('pg95-miner') || 'null');
+    if (s && Number.isInteger(s.lvl) && s.lvl >= 0 && s.lvl < LEVELS.length) cfg.lvl = s.lvl;
+    if (s && Array.isArray(s.best)) cfg.best = LEVELS.map((_, k) => (Number.isInteger(s.best[k]) && s.best[k] > 0) ? s.best[k] : null);
+  } catch (e) {}
+  function saveCfg() { try { localStorage.setItem('pg95-miner', JSON.stringify(cfg)); } catch (e) {} }
+
+  let R = 0, C = 0, M = 0;
+  let mine, opened, flag, cnt, cells = null;
+  let started = false, over = false, left = 0, flags = 0, secs = 0;
+  let flagMode = false, timer = null, press = null;
+
+  function neighbors(i) {
+    const r = Math.floor(i / C), c = i % C, out = [];
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (!dr && !dc) continue;
+        const rr = r + dr, cc = c + dc;
+        if (rr >= 0 && rr < R && cc >= 0 && cc < C) out.push(rr * C + cc);
+      }
+    }
+    return out;
+  }
+
+  // на узком экране длинное поле «Профи» ставим вертикально
+  function dims() {
+    const L = LEVELS[cfg.lvl];
+    if (L.cols > 16 && window.innerWidth < 700) return { rows: L.cols, cols: L.rows, mines: L.mines };
+    return L;
+  }
+
+  // размер клетки под экран
+  function fit() {
+    if (!cells || !win.classList.contains('show')) return;
+    const availW = Math.min(window.innerWidth - 44, 980);
+    const availH = window.innerHeight - 250;
+    let s = Math.floor(availW / C);
+    if (R * s > availH) s = Math.floor(availH / R);
+    s = Math.max(18, Math.min(32, s));
+    board.style.setProperty('--mc', s + 'px');
+  }
+
+  function led(v) {
+    v = Math.max(-99, Math.min(999, v));
+    return v < 0 ? '-' + String(-v).padStart(2, '0') : String(v).padStart(3, '0');
+  }
+
+  function updateCounters() {
+    minesEl.textContent = led(M - flags);
+    timeEl.textContent = led(secs);
+  }
+
+  function setFace(s) { face.dataset.s = s; }
+
+  function updateMenu() {
+    LEVELS.forEach((L, k) => {
+      const el = win.querySelector('[data-action="mnL' + k + '"]');
+      if (el) el.textContent = (k === cfg.lvl ? '✓ ' : ' ') + L.name + ' (' + L.cols + '×' + L.rows + ', мин: ' + L.mines + ')';
+    });
+    levelEl.textContent = LEVELS[cfg.lvl].name;
+  }
+
+  function stopTimer() { clearInterval(timer); timer = null; }
+  function startTimer() {
+    stopTimer();
+    secs = 1;
+    updateCounters();
+    timer = setInterval(() => {
+      // пока окно закрыто, приложение свёрнуто или идёт заставка — время стоит
+      if (document.hidden || saverEl.classList.contains('show') || !win.classList.contains('show')) return;
+      if (secs < 999) secs++;
+      updateCounters();
+    }, 1000);
+  }
+
+  function newGame() {
+    const d = dims();
+    R = d.rows; C = d.cols; M = d.mines;
+    const n = R * C;
+    mine = new Uint8Array(n);
+    opened = new Uint8Array(n);
+    flag = new Uint8Array(n);
+    cnt = new Uint8Array(n);
+    started = false; over = false; left = n - M; flags = 0; secs = 0;
+    stopTimer();
+    board.style.gridTemplateColumns = 'repeat(' + C + ', var(--mc))';
+    const frag = document.createDocumentFragment();
+    cells = [];
+    for (let i = 0; i < n; i++) {
+      const el = document.createElement('div');
+      el.className = 'mn-cell';
+      el.dataset.i = i;
+      cells.push(el);
+      frag.appendChild(el);
+    }
+    board.replaceChildren(frag);
+    fit();
+    setFace('ok');
+    updateCounters();
+    updateMenu();
+    statusEl.textContent = 'Первый ход всегда безопасный';
+  }
+
+  // мины — после первого хода, не рядом с ним
+  function plant(safe) {
+    const n = R * C;
+    const banned = new Set([safe].concat(neighbors(safe)));
+    let pool = [];
+    for (let i = 0; i < n; i++) if (!banned.has(i)) pool.push(i);
+    if (pool.length < M) { pool = []; for (let i = 0; i < n; i++) if (i !== safe) pool.push(i); }
+    for (let k = 0; k < M; k++) {
+      const j = k + randomInt(pool.length - k);
+      const t = pool[k]; pool[k] = pool[j]; pool[j] = t;
+      mine[pool[k]] = 1;
+    }
+    for (let i = 0; i < n; i++) {
+      let c = 0;
+      neighbors(i).forEach(j => { c += mine[j]; });
+      cnt[i] = c;
+    }
+  }
+
+  function draw(i) {
+    const el = cells[i];
+    if (opened[i]) {
+      el.className = 'mn-cell open' + (cnt[i] ? ' n' + cnt[i] : '');
+      el.textContent = cnt[i] ? String(cnt[i]) : '';
+    } else {
+      el.className = 'mn-cell' + (flag[i] ? ' flag' : '');
+      el.textContent = '';
+    }
+  }
+
+  // открыть клетку; пустые открываются «волной»
+  function reveal(start) {
+    const stack = [start];
+    while (stack.length) {
+      const i = stack.pop();
+      if (opened[i] || flag[i] || mine[i]) continue;
+      opened[i] = 1;
+      left--;
+      draw(i);
+      if (cnt[i] === 0) neighbors(i).forEach(j => { if (!opened[j] && !flag[j]) stack.push(j); });
+    }
+  }
+
+  function openCell(i) {
+    if (over || flag[i]) return;
+    if (opened[i]) { chord(i); return; }
+    if (!started) { plant(i); started = true; startTimer(); }
+    if (mine[i]) { lose(i); return; }
+    reveal(i);
+    Sound.tap();
+    if (left === 0) winGame();
+  }
+
+  // нажатие на цифру, вокруг которой уже стоят все флажки, открывает остальных соседей
+  function chord(i) {
+    if (!cnt[i]) return;
+    const nb = neighbors(i);
+    if (nb.filter(j => flag[j]).length !== cnt[i]) return;
+    const closed = nb.filter(j => !opened[j] && !flag[j]);
+    if (!closed.length) return;
+    const boom = closed.find(j => mine[j]);
+    if (boom !== undefined) { lose(boom); return; }
+    closed.forEach(reveal);
+    Sound.tap();
+    if (left === 0) winGame();
+  }
+
+  function toggleFlag(i) {
+    if (over || opened[i]) return;
+    flag[i] ^= 1;
+    flags += flag[i] ? 1 : -1;
+    draw(i);
+    updateCounters();
+    Sound.pop();
+  }
+
+  function lose(hit) {
+    over = true;
+    stopTimer();
+    for (let i = 0; i < cells.length; i++) {
+      if (mine[i] && !flag[i]) cells[i].className = 'mn-cell open mine';
+      else if (flag[i] && !mine[i]) cells[i].className = 'mn-cell open wrong';
+    }
+    cells[hit].classList.add('hit');
+    setFace('dead');
+    Sound.boom();
+    statusEl.textContent = 'Бабах! Нажмите на Ключика — сыграем ещё';
+  }
+
+  function winGame() {
+    over = true;
+    stopTimer();
+    for (let i = 0; i < cells.length; i++) if (mine[i] && !flag[i]) { flag[i] = 1; draw(i); }
+    flags = M;
+    updateCounters();
+    setFace('cool');
+    Sound.granted();
+    const t = Math.max(1, secs);
+    const best = cfg.best[cfg.lvl];
+    if (best === null || t < best) {
+      cfg.best[cfg.lvl] = t;
+      saveCfg();
+      statusEl.textContent = 'Победа! Новый рекорд: ' + t + ' с';
+      Helper.say('Ура, все мины найдены! Новый рекорд на уровне «' + LEVELS[cfg.lvl].name + '»: ' + t + ' с.');
+    } else {
+      statusEl.textContent = 'Победа! Время: ' + t + ' с (рекорд: ' + best + ' с)';
+    }
+  }
+
+  function setLevel(k) {
+    cfg.lvl = k;
+    saveCfg();
+    newGame();
+  }
+
+  function setMode(f) {
+    flagMode = f;
+    modeBtn.textContent = f ? '🚩 Режим: флажки' : '⛏ Режим: открывать';
+  }
+
+  // ---- управление: касание — открыть, долгое касание или правая кнопка — флажок
+  function cancelPress() {
+    if (!press) return;
+    clearTimeout(press.timer);
+    press = null;
+    if (!over) setFace('ok');
+  }
+
+  board.addEventListener('pointerdown', e => {
+    const el = e.target.closest('.mn-cell');
+    if (!el || over) return;
+    const i = +el.dataset.i;
+    if (e.button === 2) { toggleFlag(i); return; }
+    if (e.button !== 0) return;
+    press = { i, done: false, x: e.clientX, y: e.clientY, timer: null };
+    if (!opened[i]) setFace('oh');
+    if (e.pointerType !== 'mouse') {
+      press.timer = setTimeout(() => {
+        if (!press || press.i !== i) return;
+        press.done = true;
+        if (flagMode) openCell(i); else toggleFlag(i);
+        if (navigator.vibrate) { try { navigator.vibrate(25); } catch (err) {} }
+        if (!over) setFace('ok');
+      }, 420);
+    }
+  });
+  board.addEventListener('pointermove', e => {
+    if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) cancelPress();
+  });
+  board.addEventListener('pointerup', () => {
+    if (!press) return;
+    const p = press;
+    cancelPress();
+    if (p.done) return;
+    if (flagMode && !opened[p.i]) toggleFlag(p.i);
+    else openCell(p.i);
+  });
+  board.addEventListener('pointercancel', cancelPress);
+  board.addEventListener('pointerleave', cancelPress);
+  board.addEventListener('contextmenu', e => e.preventDefault());
+
+  face.addEventListener('click', newGame);
+  modeBtn.addEventListener('click', () => setMode(!flagMode));
+
+  function open() {
+    closeMenus();
+    win.classList.add('show');
+    if (!cells) newGame(); else fit();
+  }
+
+  function close() {
+    cancelPress();
+    win.classList.remove('show');
+  }
+
+  function showBest() {
+    const text = LEVELS.map((L, k) => L.name + ': ' + (cfg.best[k] ? cfg.best[k] + ' с' : 'пока нет')).join(' · ');
+    Dialog.ask({ title: 'Рекорды', icon: '🏆', text, cancel: null });
+  }
+
+  function help() {
+    Dialog.ask({
+      title: 'Как играть',
+      icon: '💣',
+      cancel: null,
+      text: 'Откройте все клетки, где нет мин. Цифра показывает, сколько мин вокруг неё. ' +
+        'Флажок на подозрительную клетку — долгое касание (на компьютере — правая кнопка мыши) или режим «флажки». ' +
+        'Нажатие на цифру, вокруг которой уже стоят все её флажки, откроет остальные клетки рядом. ' +
+        'Первый ход всегда безопасный. Спешить некуда — это для отдыха.'
+    });
+  }
+
+  Object.assign(actions, {
+    miner: open,
+    mnNew: newGame,
+    mnL0: () => setLevel(0),
+    mnL1: () => setLevel(1),
+    mnL2: () => setLevel(2),
+    mnBest: showBest,
+    mnHelp: help,
+    mnClose: close
+  });
+
+  document.getElementById('deskMiner').addEventListener('click', open);
+  document.getElementById('mnClose').addEventListener('click', close);
+  window.addEventListener('resize', () => {
+    if (!cells) return;
+    const d = dims();
+    // повернули телефон до первого хода — перестраиваем поле под экран
+    if (!started && (d.rows !== R || d.cols !== C)) newGame(); else fit();
+  });
+
+  updateMenu();
+  return { open, close, isOpen: () => win.classList.contains('show') };
+})();
+
 updateSoundLabels();
 startBoot();
 
@@ -3359,6 +3867,8 @@ window.onAndroidBack = function () {
   if (Dialog.isOpen()) { Dialog.close(null); return true; }
   if (document.getElementById('vlock').classList.contains('show')) { document.getElementById('vlCancel').click(); return true; }
   if (document.getElementById('vaultWin').classList.contains('show')) { Vault.back(); return true; }
+  if (document.querySelector('[data-menu].open')) { closeMenus(); return true; }
+  if (document.getElementById('minerWin').classList.contains('show')) { Miner.close(); return true; }
   if (about.classList.contains('show')) { about.classList.remove('show'); return true; }
   if (document.querySelector('[data-menu].open')) { closeMenus(); return true; }
   if (document.getElementById('helperBalloon').classList.contains('show')) { Helper.hideBalloon(); return true; }
