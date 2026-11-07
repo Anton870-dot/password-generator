@@ -1,5 +1,5 @@
 // При каждом обновлении приложения меняйте номер версии
-const CACHE = "passgen-v22";
+const CACHE = "passgen-v23";
 const FILES = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./game.js", "./game-art.js"];
 
 self.addEventListener("install", e => {

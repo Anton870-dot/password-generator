@@ -8,6 +8,8 @@
 
   const ART = window.GAME_ART || {};
   const META = window.GAME_ART_META || {};
+  // во сколько раз картинки детальнее «логического» экрана 320×200 (2 — двойное разрешение)
+  const ART_S = META.scale || 1;
 
   // ---------- случайные числа (crypto) ----------
   const rbuf = new Uint32Array(256);
@@ -119,8 +121,11 @@
       if ([0, 1, 2].includes(s.gore)) saved.gore = s.gore;
       if ([1, 2, 3].includes(s.q)) saved.q = s.q;
       if (typeof s.gl === 'boolean') saved.gl = s.gl;
+      if (s.qv === 2) saved.qv = 2;
     }
   } catch (e) {}
+  // с версии 3.10 на компьютере по умолчанию высокая чёткость (раньше была обычная)
+  if (saved.qv !== 2) { saved.q = isTouch ? 2 : 3; saved.qv = 2; }
   function store() { try { localStorage.setItem('pg95-lunar', JSON.stringify(saved)); } catch (e) {} }
   function saveProgress(level) { saved.level = Math.max(saved.level, Math.min(LEVELS.length, level)); store(); }
 
@@ -160,6 +165,11 @@
       TEX.shell = makeCasing([200, 30, 30], [210, 170, 70]);
       for (let i = 0; i < 4; i++) { TEX['splat' + i] = makeSplat(); TEX['wsplat' + i] = makeWallSplat(); }
       TEX.drop = makeDrop();
+      TEX.glow = makeTex(64, 64, (x, y) => {
+        const d = Math.hypot(x - 31.5, y - 31.5) / 31.5;
+        if (d >= 1) return 0;
+        return rgba(255, 255, 255, 255 * Math.exp(-d * d * 4.5) * (1 - d));
+      });
       TEX.mist = makeMist();
       for (let i = 0; i < 8; i++) {
         TEX['gib-tech-' + i] = makeChunk(TEX['tech-walk']);
@@ -295,7 +305,7 @@
   }
   // кусок мутанта: рваный край, кусок одежды/кожи с его картинки, мясо и кровь по краям
   function makeChunk(src) {
-    const n = 16 + ((rnd() * 10) | 0), c = n / 2;
+    const n = (16 + ((rnd() * 10) | 0)) * ART_S, c = n / 2;
     const blobs = [];
     for (let i = 0; i < 5; i++) { const a = rnd() * 6.283, d = rnd() * n * 0.22; blobs.push([c + Math.cos(a) * d, c + Math.sin(a) * d, n * (0.18 + rnd() * 0.2)]); }
     const sx0 = src ? Math.floor(rr(0.22, 0.78) * src.w - n / 2) : 0, sy0 = src ? Math.floor(rr(0.1, 0.8) * src.h - n / 2) : 0;
@@ -518,15 +528,16 @@
 
   const WALLTEX = { '#': 'wall-station', 'R': 'wall-rock', 'W': 'wall-window' };
   const ENEMY = {
-    t: { name: 'tech', hp: 30, speed: 1.05, upp: 0.8 / 112, alert: 'techAlert' },
-    a: { name: 'astro', hp: 85, speed: 1.65, upp: 0.92 / 120, alert: 'astroAlert' }
+    t: { name: 'tech', hp: 30, speed: 1.05, upp: 0.8 / (112 * ART_S), alert: 'techAlert' },
+    a: { name: 'astro', hp: 85, speed: 1.65, upp: 0.92 / (120 * ART_S), alert: 'astroAlert' }
   };
+  const IU = 0.009 / ART_S; // размер предмета в мире на точку картинки
   const ITEM = {
-    h: { tex: 'medkit', upp: 0.009 },
-    b: { tex: 'ammo', upp: 0.009 },
-    r: { tex: 'armor', upp: 0.009 },
-    o: { tex: 'oxygen', upp: 0.009 },
-    k: { tex: 'keycard', upp: 0.009 }
+    h: { tex: 'medkit', upp: IU },
+    b: { tex: 'ammo', upp: IU },
+    r: { tex: 'armor', upp: IU },
+    o: { tex: 'oxygen', upp: IU },
+    k: { tex: 'keycard', upp: IU }
   };
   // клавиши 1, 2, 3 — по порядку
   const WEAPONS = [
@@ -678,28 +689,56 @@ uniform mat4 uM;
 varying vec3 vP; varying vec2 vT; varying vec3 vN; varying vec4 vC;
 void main() { vP = aP; vT = aT; vN = aN; vC = aC; gl_Position = uM * vec4(aP, 1.0); }`;
     const FS = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
 precision mediump float;
+#endif
 varying vec3 vP; varying vec2 vT; varying vec3 vN; varying vec4 vC;
-uniform sampler2D uS; uniform vec3 uAmb; uniform vec3 uEye;
+uniform sampler2D uS; uniform sampler2D uAO; uniform vec3 uAmb; uniform vec3 uEye;
 uniform vec4 uLP[8]; uniform vec3 uLC[8];
 uniform float uFlat; uniform float uBlend; uniform float uFlash; uniform float uFog;
+uniform float uBump; uniform vec2 uTexel; uniform float uSpec; uniform vec2 uMap;
+float lum(vec3 c) { return dot(c, vec3(0.3, 0.59, 0.11)); }
 void main() {
   vec4 c = texture2D(uS, vT);
+  // ореолы: просто прибавляем свет
+  if (uBlend > 1.5) { if (c.a < 0.01) discard; gl_FragColor = vec4(c.rgb * vC.rgb, c.a * vC.a); return; }
   if (uBlend < 0.5) { if (c.a < 0.5) discard; } else { if (c.a < 0.03) discard; }
   vec3 base = c.rgb * vC.rgb;
   vec3 n = normalize(vN);
-  vec3 L = uAmb;
+  float ao = 1.0;
+  if (uBump > 0.5) {
+    // рельеф: яркость картинки — как высота; швы и заклёпки становятся объёмными
+    bool flr = abs(n.y) > 0.5;
+    vec3 T = flr ? vec3(1.0, 0.0, 0.0) : normalize(cross(vec3(0.0, 1.0, 0.0), n));
+    vec3 B = flr ? vec3(0.0, 0.0, 1.0) : vec3(0.0, -1.0, 0.0);
+    float hL = lum(texture2D(uS, vT - vec2(uTexel.x, 0.0)).rgb);
+    float hR = lum(texture2D(uS, vT + vec2(uTexel.x, 0.0)).rgb);
+    float hU = lum(texture2D(uS, vT - vec2(0.0, uTexel.y)).rgb);
+    float hD = lum(texture2D(uS, vT + vec2(0.0, uTexel.y)).rgb);
+    n = normalize(n + (T * (hL - hR) + B * (hU - hD)) * 2.4);
+    // тени в углах: у пола и потолка, вдоль стен
+    if (flr) ao = texture2D(uAO, vP.xz / uMap).r;
+    else ao = mix(0.5, 1.0, smoothstep(0.0, 0.28, vP.y)) * mix(0.72, 1.0, smoothstep(0.0, 0.16, 1.0 - vP.y));
+  }
+  vec3 V = normalize(uEye - vP);
+  vec3 L = uAmb * ao;
+  vec3 S = vec3(0.0);
   for (int i = 0; i < 8; i++) {
     vec3 d = uLP[i].xyz - vP;
     float dist = length(d);
+    vec3 ld = d / max(dist, 0.001);
     float att = clamp(1.0 - dist / uLP[i].w, 0.0, 1.0);
     att *= att;
-    float nd = mix(max(dot(n, d / max(dist, 0.001)), 0.0) * 0.8 + 0.2, 1.0, uFlat);
-    L += uLC[i] * att * nd;
+    float nd = mix(max(dot(n, ld), 0.0) * 0.8 + 0.2, 1.0, uFlat);
+    L += uLC[i] * att * nd * mix(1.0, ao, 0.6);
+    // блик на металле
+    if (uSpec > 0.0) S += uLC[i] * att * pow(max(dot(n, normalize(ld + V)), 0.0), 24.0);
   }
   float fd = length(vP - uEye);
   float fog = clamp(1.3 - fd * uFog, 0.08, 1.0);
-  vec3 col = base * L * fog;
+  vec3 col = base * L * fog + S * uSpec * (0.2 + lum(c.rgb)) * fog * ao;
   float glow = smoothstep(0.12, 0.35, c.g - max(c.r, c.b)) * 0.85;
   // в прозрачном проходе альфа вершины — это прозрачность, а не свечение
   float em = uBlend > 0.5 ? 0.0 : vC.a;
@@ -729,13 +768,52 @@ void main() {
       } catch (e) { gl = null; return false; }
       gl.useProgram(prog);
       ['aP', 'aT', 'aN', 'aC'].forEach(n => { loc[n] = gl.getAttribLocation(prog, n); });
-      ['uM', 'uS', 'uAmb', 'uEye', 'uLP', 'uLC', 'uFlat', 'uBlend', 'uFlash', 'uFog'].forEach(n => { loc[n] = gl.getUniformLocation(prog, n); });
+      ['uM', 'uS', 'uAO', 'uAmb', 'uEye', 'uLP', 'uLC', 'uFlat', 'uBlend', 'uFlash', 'uFog', 'uBump', 'uTexel', 'uSpec', 'uMap'].forEach(n => { loc[n] = gl.getUniformLocation(prog, n); });
       vbo = gl.createBuffer();
       sbo = gl.createBuffer();
       gl.enable(gl.DEPTH_TEST);
       gl.disable(gl.CULL_FACE);
       gl.uniform1i(loc.uS, 0);
+      gl.uniform1i(loc.uAO, 1);
       return true;
+    }
+
+    // блеск и рельеф для поверхностей уровня: металл блестит сильнее, скала — слабо
+    const SPEC = { 'wall-station': 0.9, door: 1.0, locked: 1.0, exit: 0.9, floor: 0.8, ceil: 0.3, 'wall-rock': 0.35, 'wall-window': 0.6 };
+    function surface(name, on) {
+      const t = TEX[name];
+      if (on && t && SPEC[name] !== undefined) {
+        gl.uniform1f(loc.uBump, 1); gl.uniform2f(loc.uTexel, 1 / t.w, 1 / t.h); gl.uniform1f(loc.uSpec, SPEC[name]);
+      } else { gl.uniform1f(loc.uBump, 0); gl.uniform1f(loc.uSpec, 0); }
+    }
+
+    // карта теней в углах для пола и потолка: темнее у стен
+    let aoTex = null;
+    function buildAO(g) {
+      const R = 8, AW = g.MW * R, AH = g.MH * R, data = new Uint8Array(AW * AH);
+      const isWall = (x, z) => { const k = (x < 0 || z < 0 || x >= g.MW || z >= g.MH) ? 1 : g.cells[z * g.MW + x]; return k === 1 || k === 4; };
+      for (let j = 0; j < AH; j++) for (let i = 0; i < AW; i++) {
+        const x = (i + 0.5) / R, z = (j + 0.5) / R, cx = Math.floor(x), cz = Math.floor(z);
+        let d = 1;
+        for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+          const wx = cx + dx, wz = cz + dz;
+          if (!isWall(wx, wz)) continue;
+          const ex = Math.max(wx - x, 0, x - wx - 1), ez = Math.max(wz - z, 0, z - wz - 1);
+          d = Math.min(d, Math.hypot(ex, ez));
+        }
+        const t = Math.min(1, d / 0.55), s = t * t * (3 - 2 * t);
+        data[j * AW + i] = Math.round((0.45 + 0.55 * s) * 255);
+      }
+      if (!aoTex) aoTex = gl.createTexture();
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, aoTex);
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, AW, AH, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, data);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.activeTexture(gl.TEXTURE0);
     }
 
     function tex(name) {
@@ -746,14 +824,16 @@ void main() {
       gl.bindTexture(gl.TEXTURE_2D, id);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, t.w, t.h, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(t.px.buffer, t.px.byteOffset, t.px.byteLength));
       const pot = (t.w & (t.w - 1)) === 0 && (t.h & (t.h - 1)) === 0;
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      // мягкие картинки (свечение, дымка, капли) сглаживаем, остальное — чёткие пиксели
+      const soft = name === 'glow' || name === 'mist' || name === 'drop';
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, soft ? gl.LINEAR : gl.NEAREST);
       if (pot) {
         gl.generateMipmap(gl.TEXTURE_2D);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST_MIPMAP_NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, soft ? gl.LINEAR_MIPMAP_LINEAR : gl.NEAREST_MIPMAP_LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, soft ? gl.CLAMP_TO_EDGE : gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, soft ? gl.CLAMP_TO_EDGE : gl.REPEAT);
       } else {
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, soft ? gl.LINEAR : gl.NEAREST);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
       }
@@ -816,6 +896,7 @@ void main() {
         stat.push({ tex: name, start, count: outN - start });
       }
       bArr = out;
+      buildAO(g);
       gl.bindBuffer(gl.ARRAY_BUFFER, sbo);
       gl.bufferData(gl.ARRAY_BUFFER, bArr.subarray(0, outN * 12), gl.STATIC_DRAW);
       building = false;
@@ -892,6 +973,7 @@ void main() {
         if (d > 13) continue;
         let k = 1;
         if (l.flick) { const q = Math.sin(t * 13 + l.ph) + Math.sin(t * 7.3 + l.ph * 2); k = q > 1.2 ? 0.15 : q > 0.6 ? 0.6 : 1; }
+        l.kNow = k;
         cand.push({ x: l.x, y: 0.92, z: l.y, r: l.r, c: l.col, k, s: d });
       }
       cand.sort((a, b) => a.s - b.s);
@@ -909,7 +991,10 @@ void main() {
       gl.bindBuffer(gl.ARRAY_BUFFER, sbo);
       attribs();
       gl.uniform1f(loc.uFlat, 0); gl.uniform1f(loc.uBlend, 0); gl.uniform1f(loc.uFlash, 0);
+      gl.uniform2f(loc.uMap, g.MW, g.MH);
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, aoTex); gl.activeTexture(gl.TEXTURE0);
       for (const s of stat) {
+        surface(s.tex, true);
         gl.bindTexture(gl.TEXTURE_2D, tex(s.tex));
         gl.drawArrays(gl.TRIANGLES, s.start, s.count);
       }
@@ -1067,6 +1152,39 @@ void main() {
             0, 0, 1, 1, [0, 1, 0], c);
         }
       }
+      // ореолы света (складываются со светом сцены)
+      const glowStart = segs.length;
+      const glow = (x, y, z, s, r, gg, b) => {
+        seg('glow', 1, 2, 0);
+        quad([x - qx * s - ux * s, y - qy * s - uy * s, z - qz * s - uz * s],
+          [x + qx * s - ux * s, y + qy * s - uy * s, z + qz * s - uz * s],
+          [x + qx * s + ux * s, y + qy * s + uy * s, z + qz * s + uz * s],
+          [x - qx * s + ux * s, y - qy * s + uy * s, z - qz * s + uz * s],
+          0, 0, 1, 1, [0, 1, 0], [r, gg, b, 1]);
+      };
+      for (const l of g.lamps) {
+        if (Math.hypot(l.x - ex, l.y - ez) > 14) continue;
+        const k = l.kNow === undefined ? 1 : l.kNow;
+        glow(l.x, 0.97, l.y, 0.26, l.col[0] * 0.55 * k, l.col[1] * 0.55 * k, l.col[2] * 0.55 * k);
+        glow(l.x, 0.9, l.y, 0.7, l.col[0] * 0.12 * k, l.col[1] * 0.12 * k, l.col[2] * 0.12 * k);
+      }
+      for (const s of g.shots) glow(s.x, 0.5, s.y, 0.2, 0.25, 0.9, 0.35);
+      let nCr = 0;
+      for (const p of g.parts) if (p.kind === 'crystal' && nCr++ < 80) glow(p.x, p.y, p.z, 0.06, 0.15, 0.55, 0.2);
+      for (const l of g.lights) { const k = l.t / l.t0; glow(l.x, l.y, l.z, l.r * 0.16, l.c[0] * 0.25 * k, l.c[1] * 0.25 * k, l.c[2] * 0.25 * k); }
+      if (g.muzzle > 0) {
+        const m = g.muzzle;
+        glow(ex + f[0] * 0.55 + rx * 0.05, ey - 0.07 + f[1] * 0.55, ez + f[2] * 0.55 + rz * 0.05, 0.35 * m, 0.9 * m, 0.6 * m, 0.25 * m);
+      }
+      // зелёный свет шлюза
+      for (let z = 0; z < g.MH; z++) for (let x = 0; x < g.MW; x++) {
+        if (g.cells[z * g.MW + x] !== 4) continue;
+        for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const k = g.cells[(z + dz) * g.MW + x + dx];
+          if (k !== 0 || Math.hypot(x + 0.5 - ex, z + 0.5 - ez) > 12) continue;
+          glow(x + 0.5 + dx * 0.56, 0.55, z + 0.5 + dz * 0.56, 0.55, 0.1, 0.4, 0.15);
+        }
+      }
       closeSegs();
       dyn = out;
       gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
@@ -1081,7 +1199,9 @@ void main() {
           gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-1, -4);
         }
         if (i === decalEnd) gl.disable(gl.POLYGON_OFFSET_FILL);
+        if (i === glowStart) gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
         gl.uniform1f(loc.uFlat, s.flat); gl.uniform1f(loc.uBlend, s.blend); gl.uniform1f(loc.uFlash, s.flash);
+        surface(s.tex, s.flat === 0 && s.blend === 0);
         gl.bindTexture(gl.TEXTURE_2D, tex(s.tex));
         gl.drawArrays(gl.TRIANGLES, s.start, s.count);
       }
@@ -1114,7 +1234,7 @@ void main() {
   }
   function renderSoft() {
     const { px, py, dirX, dirY, planeX, planeY } = G;
-    const fl = TEX.floor, ce = TEX.ceil;
+    const fl = TEX.floor, ce = TEX.ceil, FW = fl.w;
     const rdx0 = dirX - planeX, rdy0 = dirY - planeY, rdx1 = dirX + planeX, rdy1 = dirY + planeY;
     const half = VH / 2;
     for (let y = half + 1; y < VH; y++) {
@@ -1124,8 +1244,8 @@ void main() {
       const f = fog(rowDist), fc = (f * 0.8) | 0;
       const ro = y * W, rc = (VH - 1 - y) * W;
       for (let x = 0; x < W; x++) {
-        const tx = ((fx - Math.floor(fx)) * 64) & 63, ty = ((fy - Math.floor(fy)) * 64) & 63;
-        const k = ty * 64 + tx;
+        const tx = ((fx - Math.floor(fx)) * FW) & (FW - 1), ty = ((fy - Math.floor(fy)) * FW) & (FW - 1);
+        const k = ty * FW + tx;
         buf[ro + x] = shade(fl.px[k], f);
         buf[rc + x] = shade(ce.px[k], fc);
         fx += sx; fy += sy;
@@ -1262,9 +1382,9 @@ void main() {
         }
         ctx.restore();
       }
-      ctx.drawImage(im, Math.round(W / 2 + m.dx + bx), Math.round(VH + m.dy + by + sw + (frame === 'idle' ? 4 : 0)));
+      ctx.drawImage(im, Math.round(W / 2 + m.dx + bx), Math.round(VH + m.dy + by + sw + (frame === 'idle' ? 4 : 0)), im.width / ART_S, im.height / ART_S);
     } else if (idle && state !== 'dead') {
-      const bw = idle.width, bh = idle.height;
+      const bw = idle.width / ART_S, bh = idle.height / ART_S;
       const bx = Math.sin(G.bob) * 5 * G.moving, by = Math.abs(Math.cos(G.bob)) * 5 * G.moving;
       const sw = G.wpSwitch > 0 ? (G.wpSwitch > 0.15 ? (0.3 - G.wpSwitch) : G.wpSwitch) / 0.15 * 90 : 0;
       const kick = G.wpFrame === 0 ? 4 : 0;
@@ -1273,7 +1393,7 @@ void main() {
       let y = Math.round(VH - bh + 6 + by + sw + kick);
       if (frame === 'smoke' && META.pistolSmoke) { x += META.pistolSmoke.dx; y += META.pistolSmoke.dy; }
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(im, x, y);
+      ctx.drawImage(im, x, y, im.width / ART_S, im.height / ART_S);
     }
     if (state !== 'dead') {
       ctx.fillStyle = 'rgba(140,255,150,.7)';
