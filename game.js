@@ -41,6 +41,7 @@
 .ln-fire { right: 16px; bottom: 20px; width: 86px; height: 86px; font-size: 14px; background: rgba(200,40,40,.4); }
 .ln-use { right: 112px; bottom: 26px; width: 60px; height: 60px; }
 .ln-weap { right: 24px; bottom: 118px; width: 58px; height: 58px; font-size: 11px; }
+.ln-reload { right: 96px; bottom: 96px; width: 54px; height: 54px; font-size: 10px; }
 .ln-pause { right: 10px; top: 10px; width: 42px; height: 42px; border-radius: 6px; font-size: 16px; }
 .ln-zone { position: absolute; left: 14px; bottom: 14px; color: rgba(255,255,255,.35); font: 11px Tahoma, sans-serif; pointer-events: none; }
 .ln-zone.r { left: auto; right: 64px; bottom: auto; top: 24px; }
@@ -89,6 +90,7 @@
         <div class="ln-btn ln-fire" data-b="fire">ОГОНЬ</div>
         <div class="ln-btn ln-use" data-b="use">Открыть</div>
         <div class="ln-btn ln-weap" data-b="weap">Оружие</div>
+        <div class="ln-btn ln-reload" data-b="reload">Пере-<br>зарядка</div>
         <div class="ln-btn ln-pause" data-b="pause">II</div>
       </div>
       <div class="ln-menu" id="lnMenu"></div>
@@ -166,6 +168,12 @@
       TEX.shell = makeCasing([200, 30, 30], [210, 170, 70]);
       for (let i = 0; i < 4; i++) { TEX['splat' + i] = makeSplat(); TEX['wsplat' + i] = makeWallSplat(); }
       TEX.drop = makeDrop();
+      // пустой магазин пистолета (падает на пол при перезарядке)
+      TEX.mag = makeTex(6, 16, (x, y) => {
+        const k = x === 1 ? 1.35 : x === 4 ? 0.7 : 1;
+        if (y >= 13) return rgba(40 * k, 40 * k, 44 * k, 255);
+        return rgba(70 * k, 66 * k, 64 * k, 255);
+      });
       TEX.glow = makeTex(64, 64, (x, y) => {
         const d = Math.hypot(x - 31.5, y - 31.5) / 31.5;
         if (d >= 1) return 0;
@@ -374,6 +382,31 @@
     o.connect(g); g.connect(master);
     o.start(t); o.stop(t + dur + 0.05);
   }
+  // ---------- голос героя (записанные фразы из game-art.js) ----------
+  const VOICE = {};
+  let voiceSrc = null;
+  function playVoice(name) {
+    const c = audio();
+    const src = (window.GAME_AUDIO || {})[name];
+    if (!c || !src) return;
+    stopVoice();
+    const go = buf => {
+      const s = c.createBufferSource(); s.buffer = buf;
+      const g = c.createGain(); g.gain.value = 1.4;
+      s.connect(g); g.connect(master);
+      s.onended = () => { if (voiceSrc === s) voiceSrc = null; };
+      s.start(); voiceSrc = s;
+      if (G) G.face.talkT = buf.duration;   // пока говорит — лицо «разговаривает»
+    };
+    if (VOICE[name]) { go(VOICE[name]); return; }
+    try {
+      const bin = atob(src.split(',')[1]), u8 = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      c.decodeAudioData(u8.buffer, buf => { VOICE[name] = buf; go(buf); }, () => {});
+    } catch (e) {}
+  }
+  function stopVoice() { if (voiceSrc) { try { voiceSrc.stop(); } catch (e) {} voiceSrc = null; } }
+
   // звук из точки уровня: чем дальше, тем тише
   function atDist(x, y, fn, range) {
     if (!G) return;
@@ -426,6 +459,11 @@
       noise(0.15, 'bandpass', 1300, 0.7, 0.08, 1.2);
       for (let i = 0; i < 8; i++) tone('sine', 1600 + rnd() * 2600, 900, 0.25, 0.05, 0.1 + i * 0.04);
     },
+    // перезарядка: защёлка и выпавший магазин, новый магазин, затвор, патрон в трубку дробовика
+    magOut() { tone('square', 1800, 1600, 0.03, 0.06); noise(0.08, 'bandpass', 2400, 0.35, 0.01, 3); },
+    magIn() { noise(0.05, 'highpass', 2000, 0.5); tone('sine', 380, 260, 0.08, 0.3); tone('square', 2200, 2100, 0.02, 0.05, 0.03); },
+    rack() { noise(0.09, 'bandpass', 1500, 0.55, 0, 2); noise(0.07, 'highpass', 3000, 0.45, 0.11); tone('sine', 300, 180, 0.08, 0.25, 0.11); },
+    shellIn() { noise(0.05, 'bandpass', 1100, 0.45, 0, 2); tone('sine', 520, 330, 0.06, 0.2); tone('square', 2500, 2400, 0.02, 0.04, 0.02); },
     // лифт: гул мотора и удар при остановке; приземление после прыжка
     lift() { tone('sawtooth', 48, 62, 1.4, 0.14); noise(1.3, 'lowpass', 300, 0.25); tone('square', 900, 900, 0.06, 0.04); },
     liftStop() { noise(0.15, 'lowpass', 500, 0.6); tone('sine', 90, 40, 0.2, 0.4); tone('sine', 1300, 1250, 0.3, 0.05, 0.03); },
@@ -578,6 +616,7 @@
     { id: 'shotgun', name: 'Гвардейский дробовик', short: 'дробь', ammo: 'shells', cd: 0.9, frames: [['fire', 0.1], ['idle', 0.14], ['reload', 0.36]], sfx: 'shotgun', kick: 0.5 }
   ];
   const wid = () => WEAPONS[G.p.weapon].id;
+  const CAP = { pistol: 12, shotgun: 6 };   // магазин пистолета и трубка дробовика
 
   // ---------- состояние ----------
   let G = null;            // текущая игра
@@ -585,7 +624,8 @@
   let open = false, raf = null, lastT = 0;
 
   function newPlayer() {
-    return { hp: 100, armor: 0, bullets: 40, shells: 10, weapon: 1, key: false };
+    // bullets / shells — запас; clip — сколько сейчас в магазине / трубке
+    return { hp: 100, armor: 0, bullets: 36, shells: 8, clip: { pistol: CAP.pistol, shotgun: CAP.shotgun }, weapon: 1, key: false };
   }
   const alive = e => e.st !== 'dead' && e.st !== 'dying' && e.st !== 'gone';
   // какой кадр мутанта показать сейчас
@@ -1738,11 +1778,47 @@ void main() {
       const sw = G.wpSwitch > 0 ? (G.wpSwitch > 0.15 ? (0.3 - G.wpSwitch) : G.wpSwitch) / 0.15 * 90 : 0;
       const kick = G.wpFrame === 0 ? 4 : 0;
       const shx = G.shake > 0 ? (rnd() - 0.5) * G.shake * 6 : 0;
+      // перезарядка: свой кадр, наклон и «нырок» оружия вниз
+      let dip = 0, rot = 0, shell = -1;
+      const rl = G.rl && G.rl.kind === base ? G.rl : null;
+      if (rl) {
+        const st = rl.stage, q = rl.q || 0;
+        if (base === 'pistol') {
+          if (st === 'reload1' || st === 'slideback') frame = st;
+          else if (st === 'dip') { frame = 'idle'; dip = Math.sin(q * Math.PI) * 85; rot = Math.sin(q * Math.PI) * 0.25; }
+          else if (st === 'raise') { frame = 'idle'; dip = (1 - q) * 30; }
+        } else {
+          frame = st === 'pump' ? 'reload' : 'idle';
+          const k = st === 'in' ? q : st === 'out' ? 1 - q : st === 'load' ? 1 : 0;
+          rot = -0.2 * k; dip = 16 * k;
+          if (st === 'load') { dip += Math.max(0, 1 - q * 4) * 4; shell = q; }
+        }
+      }
+      // пистолет без патронов — затвор остаётся в заднем положении
+      if (base === 'pistol' && frame === 'idle' && !rl && G.p.clip && G.p.clip.pistol === 0) frame = 'slideback';
+      const img2 = IMG[base + '-' + frame] || idle;
       let x = Math.round(W / 2 - bw / 2 + bx + shx + (META[base] ? META[base].cx * 40 : 0));
-      let y = Math.round(VH - bh + 6 + by + sw + kick);
+      let y = Math.round(VH - bh + 6 + by + sw + kick + dip);
       if (frame === 'smoke' && META.pistolSmoke) { x += META.pistolSmoke.dx; y += META.pistolSmoke.dy; }
+      const off = META.wpOff && META.wpOff[base + '-' + frame];
+      if (off) { x += off.dx; y += off.dy; }
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(im, x, y, im.width / ART_S, im.height / ART_S);
+      if (rot) {
+        // поворот вокруг нижнего края оружия
+        const px = x + bw / 2, py = y + bh;
+        ctx.save(); ctx.translate(px, py); ctx.rotate(rot); ctx.translate(-px, -py);
+        ctx.drawImage(img2, x, y, img2.width / ART_S, img2.height / ART_S);
+        ctx.restore();
+      } else ctx.drawImage(img2, x, y, img2.width / ART_S, img2.height / ART_S);
+      // патрон дроби входит в окно снизу
+      if (shell >= 0 && shell < 0.75) {
+        const k = shell / 0.75, sx = W / 2 + 34 - k * 24, sy = VH + 6 - k * 50;
+        ctx.save(); ctx.translate(sx, sy); ctx.rotate(-0.5);
+        ctx.fillStyle = '#b81c1c'; ctx.fillRect(-3, -9, 6, 13);
+        ctx.fillStyle = '#e04040'; ctx.fillRect(-3, -9, 2, 13);
+        ctx.fillStyle = '#c9a23a'; ctx.fillRect(-3, 4, 6, 4);
+        ctx.restore();
+      }
     }
     if (state !== 'dead') {
       ctx.fillStyle = 'rgba(140,255,150,.7)';
@@ -1806,7 +1882,7 @@ void main() {
       ctx.restore();
       ctx.imageSmoothingEnabled = false;
     }
-    if (w.ammo) field(148, 64, 'ПАТРОНЫ ' + w.short, String(p[w.ammo]), '#ffd95a');
+    if (w.ammo) field(148, 64, 'ПАТРОНЫ ' + w.short, (p.clip ? p.clip[w.id] : 0) + '/' + p[w.ammo], p.clip && p.clip[w.id] === 0 ? '#ff7a40' : '#ffd95a');
     else field(148, 64, 'ЛОМ', '—', '#ffd95a');
     const kx = 214, h = HUDH - 8, ky = VH + 4;
     ctx.fillStyle = '#000'; ctx.fillRect(kx, ky, 30, h); bevel(kx, ky, 30, h, true);
@@ -2074,6 +2150,9 @@ void main() {
         }
       }
     }
+    updateReload(dt);
+    if (G.autoRl && !G.rl && G.wpFrame === -1 && G.wpTimer <= 0) startReload();
+    if (input.reload) { input.reload = false; startReload(); }
     if (input.fire || input.keys.has('Space') || input.keys.has('ControlLeft') || input.keys.has('ControlRight')) fire();
     if (input.use) { input.use = false; use(); }
 
@@ -2119,10 +2198,70 @@ void main() {
     return true;
   }
 
+  // ---------- перезарядка ----------
+  function startReload() {
+    const p = G.p, w = WEAPONS[p.weapon];
+    if (!w.ammo || G.rl || G.wpSwitch > 0 || G.finT > 0) return false;
+    if (p.clip[w.id] >= CAP[w.id] || p[w.ammo] <= 0) return false;
+    G.wpFrame = -1; G.autoRl = false;
+    G.rl = w.id === 'pistol'
+      ? { kind: 'pistol', t: 0, empty: p.clip.pistol === 0, stage: 'reload1', q: 0 }
+      : { kind: 'shotgun', t: 0, stage: 'in', q: 0, lt: 0, empty: p.clip.shotgun === 0, stop: false };
+    return true;
+  }
+  function updateReload(dt) {
+    const r = G.rl, p = G.p;
+    if (!r) return;
+    r.t += dt;
+    if (r.kind === 'pistol') {
+      // 1) пустой магазин вылетает  2) рука вниз — новый магазин  3) затвор (если был пуст)  4) оружие на место
+      const T1 = 0.42, T2 = T1 + 0.42, T3 = T2 + (r.empty ? 0.3 : 0), T4 = T3 + 0.18;
+      if (!r.d1 && r.t > 0.1) { r.d1 = 1; SFX.magOut(); dropMag(); }
+      if (!r.d2 && r.t > T1 + 0.3) {
+        r.d2 = 1; SFX.magIn();
+        const take = Math.min(CAP.pistol - p.clip.pistol, p.bullets);
+        p.clip.pistol += take; p.bullets -= take;
+      }
+      if (r.empty && !r.d3 && r.t > T2 + 0.12) { r.d3 = 1; SFX.rack(); }
+      if (r.t < T1) { r.stage = 'reload1'; r.q = r.t / T1; }
+      else if (r.t < T2) { r.stage = 'dip'; r.q = (r.t - T1) / (T2 - T1); }
+      else if (r.t < T3) { r.stage = 'slideback'; r.q = (r.t - T2) / (T3 - T2); }
+      else if (r.t < T4) { r.stage = 'raise'; r.q = (r.t - T3) / (T4 - T3); }
+      else G.rl = null;
+      return;
+    }
+    // дробовик: наклон → патроны по одному → обратно → (если был пуст) передёрнуть цевьё
+    const dur = { in: 0.22, out: r.stop ? 0.12 : 0.22, pump: 0.35 };
+    if (r.stage === 'load') {
+      r.lt += dt; r.q = Math.min(1, r.lt / 0.4);
+      if (r.lt >= 0.4) {
+        r.lt = 0;
+        p.clip.shotgun++; p.shells--;
+        SFX.shellIn();
+        if (p.clip.shotgun >= CAP.shotgun || p.shells <= 0 || r.stop) { r.stage = 'out'; r.t = 0; }
+      } else if (r.stop && p.clip.shotgun > 0) { r.stage = 'out'; r.t = 0; }
+      return;
+    }
+    r.q = Math.min(1, r.t / dur[r.stage]);
+    if (r.t < dur[r.stage]) return;
+    r.t = 0;
+    if (r.stage === 'in') { r.stage = r.stop && p.clip.shotgun > 0 ? 'out' : 'load'; r.lt = 0; }
+    else if (r.stage === 'out') {
+      if (r.empty && p.clip.shotgun > 0) { r.stage = 'pump'; SFX.pump(); } else G.rl = null;
+    } else G.rl = null;
+  }
+  // пустой магазин падает на пол
+  function dropMag() {
+    const rx = -G.dirY, rz = G.dirX;
+    part({ x: G.px + G.dirX * 0.3 + rx * 0.08, y: G.camZ + EYE - 0.25, z: G.py + G.dirY * 0.3 + rz * 0.08,
+      vx: G.dirX * 0.4 + rx * 0.3, vy: -0.5, vz: G.dirY * 0.4 + rz * 0.3, s: 0.035, tex: 'mag', c: [1, 1, 1, 0], kind: 'shell', life: 25, bounce: 0.3 });
+  }
+
   function switchWeapon(n) {
     const p = G.p;
     if (n === undefined) n = (p.weapon + 1) % WEAPONS.length;
     if (n === p.weapon || G.wpSwitch > 0) return;
+    G.rl = null; G.autoRl = false;
     G.wpNext = n; G.wpSwitch = 0.3; G.wpFrame = -1;
     SFX.weapon();
     say(WEAPONS[n].name, 1.5);
@@ -2188,13 +2327,17 @@ void main() {
       SFX.swing();
       return;
     }
-    if (p[w.ammo] <= 0) {
+    // во время перезарядки: дробовик можно прервать выстрелом, пистолет — нет
+    if (G.rl) { if (G.rl.kind === 'shotgun' && p.clip.shotgun > 0) G.rl.stop = true; return; }
+    if (p.clip[w.id] <= 0) {
+      if (startReload()) return;
       G.wpTimer = 0.4; SFX.empty();
-      const other = WEAPONS.findIndex(x => x.ammo && p[x.ammo] > 0);
+      const other = WEAPONS.findIndex(x => x.ammo && (p.clip[x.id] > 0 || p[x.ammo] > 0));
       if (other >= 0) switchWeapon(other); else { say('Патроны кончились! В ход идёт лом'); switchWeapon(0); }
       return;
     }
-    p[w.ammo]--;
+    p.clip[w.id]--;
+    if (p.clip[w.id] === 0 && p[w.ammo] > 0) G.autoRl = true;   // опустел — перезарядим сами после выстрела
     G.wpTimer = w.cd; G.wpFrame = 0; G.wpSeq = w.frames[0][1];
     G.muzzle = 1;
     G.shake = Math.max(G.shake, w.kick);
@@ -2581,10 +2724,11 @@ void main() {
     showMenu(`
       <h2>Управление</h2>
       <p><b>Компьютер:</b> щёлкните по экрану игры, чтобы управлять мышью. W A S D или стрелки — ходить, мышь — обзор,
-      левая кнопка, Пробел или Ctrl — огонь, E или Enter — открыть дверь, 1 — лом, 2 — пистолет, 3 — дробовик (Q — следующее), Shift — бег, Esc — пауза.
+      левая кнопка, Пробел или Ctrl — огонь, E или Enter — открыть дверь, 1 — лом, 2 — пистолет, 3 — дробовик (Q — следующее), R — перезарядка, Shift — бег, Esc — пауза.
       Без мыши: PageUp / PageDown — смотреть вверх-вниз, End — прямо.</p>
       <p><b>Телефон:</b> левая половина — джойстик (ходить), правая — ведите пальцем, чтобы осмотреться.
-      Кнопки: ОГОНЬ, Открыть (двери и шлюз), Оружие. Удобнее держать телефон горизонтально.</p>
+      Кнопки: ОГОНЬ, Открыть (двери, шлюз, лифт), Оружие, Перезарядка. Удобнее держать телефон горизонтально.</p>
+      <p><b>Патроны:</b> в пистолете магазин на 12, в дробовике 6 зарядов. Пустое оружие перезаряжается само. Зарядку дробовика можно прервать выстрелом.</p>
       <p><b>Добивание:</b> тяжело раненый мутант шатается и мерцает. Подойдите вплотную и ударьте ломом (или нажмите E / «Открыть») — расправа и +10 здоровья.</p>
       <p>Красную дверь открывает красная карта доступа. Уровень заканчивается у зелёной двери шлюза.</p>
       <button class="win95-button" data-m="${back}">Назад</button>`);
@@ -2683,7 +2827,7 @@ void main() {
   });
 
   // ---------- управление: клавиатура и мышь ----------
-  const GAME_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ControlLeft', 'ControlRight', 'ShiftLeft', 'ShiftRight', 'KeyE', 'Enter', 'KeyQ', 'Digit1', 'Digit2', 'Digit3', 'Escape', 'PageUp', 'PageDown', 'End']);
+  const GAME_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ControlLeft', 'ControlRight', 'ShiftLeft', 'ShiftRight', 'KeyE', 'Enter', 'KeyQ', 'KeyR', 'Digit1', 'Digit2', 'Digit3', 'Escape', 'PageUp', 'PageDown', 'End']);
   window.addEventListener('keydown', e => {
     if (!open) return;
     if (state !== 'play') { if (e.code === 'Escape' && state === 'pause') { e.preventDefault(); play(); } return; }
@@ -2695,6 +2839,7 @@ void main() {
     else if (e.code === 'Digit1') switchWeapon(0);
     else if (e.code === 'Digit2') switchWeapon(1);
     else if (e.code === 'Digit3') switchWeapon(2);
+    else if (e.code === 'KeyR') input.reload = true;
     else if (e.code === 'KeyQ') switchWeapon();
     input.keys.add(e.code);
   });
@@ -2737,6 +2882,7 @@ void main() {
       if (b === 'fire') { input.fire = true; touches.set(e.pointerId, { kind: 'fire', btn }); }
       else if (b === 'use') { input.use = true; touches.set(e.pointerId, { kind: 'btn', btn }); }
       else if (b === 'weap') { switchWeapon(); touches.set(e.pointerId, { kind: 'btn', btn }); }
+      else if (b === 'reload') { input.reload = true; touches.set(e.pointerId, { kind: 'btn', btn }); }
       else if (b === 'pause') { touches.set(e.pointerId, { kind: 'btn', btn }); pauseScreen(); }
       try { touchEl.setPointerCapture(e.pointerId); } catch (err) {}
       return;
