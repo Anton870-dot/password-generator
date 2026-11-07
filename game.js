@@ -426,6 +426,10 @@
       noise(0.15, 'bandpass', 1300, 0.7, 0.08, 1.2);
       for (let i = 0; i < 8; i++) tone('sine', 1600 + rnd() * 2600, 900, 0.25, 0.05, 0.1 + i * 0.04);
     },
+    // лифт: гул мотора и удар при остановке; приземление после прыжка
+    lift() { tone('sawtooth', 48, 62, 1.4, 0.14); noise(1.3, 'lowpass', 300, 0.25); tone('square', 900, 900, 0.06, 0.04); },
+    liftStop() { noise(0.15, 'lowpass', 500, 0.6); tone('sine', 90, 40, 0.2, 0.4); tone('sine', 1300, 1250, 0.3, 0.05, 0.03); },
+    land() { noise(0.12, 'lowpass', 400, 0.7); tone('sine', 110, 45, 0.15, 0.5); },
     stun() { tone('sine', 620, 380, 0.6, 0.06); tone('sine', 660, 400, 0.6, 0.05, 0.1); tone('sawtooth', 110, 80, 0.7, 0.08); },
     // шаги мутантов
     stepTech() { noise(0.09, 'lowpass', 350, 0.5); noise(0.05, 'bandpass', 900, 0.15, 0.02, 2); },
@@ -462,6 +466,15 @@
       amb: [0.17, 0.18, 0.22], lamp: [1.25, 1.17, 1.0], lampR: 4.4, red: 0,
       // цветокоррекция «как в кино»: холодный станционный свет
       grade: { tint: [0.96, 1.0, 1.08], sat: 0.92, con: 1.08, bloom: 0.85 },
+      // высоты: прямоугольники [x0, y0, x1, y1], f — пол, c — потолок (стена = 1)
+      zones: [
+        { r: [13, 1, 22, 3], c: 2 },                                  // высокий зал с лестницей на балкон
+        { r: [18, 1, 18, 3], f: 0.25 }, { r: [19, 1, 19, 3], f: 0.5 }, { r: [20, 1, 22, 3], f: 0.75 },
+        { r: [7, 8, 10, 8], f: -0.25 }, { r: [7, 9, 10, 11], f: -0.5 }, { r: [7, 12, 10, 12], f: -0.25 }, // котлован
+        { r: [18, 10, 22, 14], c: 2 }, { r: [21, 10, 22, 14], f: 1 }   // шлюз на возвышении
+      ],
+      lifts: [{ x: 20, y: 12, lo: 0, hi: 1, start: 'lo' }],
+      stepTex: 'wall-station',
       map: [
         '########################',
         '#P...#......W..........#',
@@ -487,6 +500,12 @@
       amb: [0.1, 0.13, 0.11], lamp: [0.6, 1.15, 0.65], lampR: 3.8, red: 0,
       // ядовито-зелёная шахта, кристаллы сильнее светятся
       grade: { tint: [0.92, 1.06, 0.9], sat: 1.06, con: 1.12, bloom: 1.25 },
+      zones: [
+        { r: [7, 7, 13, 12], c: 2 },                                  // пещера
+        { r: [7, 9, 13, 10], f: -1.5 }, { r: [10, 9, 10, 10], f: 0 }   // пропасть и узкий мост
+      ],
+      lifts: [{ x: 7, y: 9, lo: -1.5, hi: 0 }],                         // выбраться со дна пропасти
+      stepTex: 'wall-rock', pitTex: 'wall-rock',
       map: [
         'RRRRRRRRRRRRRRRRRRRRRRRR',
         'RP....R.......R........R',
@@ -512,6 +531,12 @@
       amb: [0.14, 0.15, 0.19], lamp: [1.05, 1.1, 1.25], lampR: 4.4, red: 0.35,
       // тревожный командный центр: тёплые красные тени
       grade: { tint: [1.07, 0.96, 0.95], sat: 0.95, con: 1.14, bloom: 1.0 },
+      zones: [
+        { r: [6, 1, 19, 4], c: 2 },                                   // большой зал
+        { r: [8, 3, 17, 3], f: 0.25 }, { r: [8, 1, 17, 2], f: 0.5 }    // командный мостик с лестницей
+      ],
+      lifts: [],
+      stepTex: 'wall-station',
       map: [
         '########################',
         '#P...#.....WWWW.....#..#',
@@ -600,6 +625,24 @@
         } else if (ITEM[ch]) items.push({ kind: ch, x: x + 0.5, y: y + 0.5 });
       }
     }
+    // высоты пола и потолка
+    const fh = new Float32Array(MW * MH), chh = new Float32Array(MW * MH).fill(1);
+    for (const zn of (L.zones || [])) {
+      const [x0, y0, x1, y1] = zn.r;
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        if (zn.f !== undefined) fh[y * MW + x] = zn.f;
+        if (zn.c !== undefined) chh[y * MW + x] = zn.c;
+      }
+    }
+    // лифты: пол двигается между lo и hi
+    const lifts = new Map();
+    for (const l of (L.lifts || [])) {
+      const h = l.start === 'lo' ? l.lo : l.hi;
+      lifts.set(l.y * MW + l.x, { x: l.x, y: l.y, lo: l.lo, hi: l.hi, h, target: h });
+    }
+    const fAt = (x, y) => { const i = Math.floor(y) * MW + Math.floor(x), l = lifts.get(i); return l ? l.h : fh[i]; };
+    enemies.forEach(e => { e.z = fAt(e.x, e.y); e.vz = 0; e.enemy = true; });
+    items.forEach(it => { it.z = fAt(it.x, it.y); });
     // светильники: примерно по одному на 3–4 клетки
     const lamps = [];
     for (let y = 1; y < MH - 1; y++) for (let x = 1; x < MW - 1; x++) {
@@ -608,10 +651,19 @@
       const red = rnd() < L.red;
       lamps.push({ x: x + 0.5, y: y + 0.5, col: red ? [1.1, 0.22, 0.18] : L.lamp, r: L.lampR, flick: rnd() < 0.2, ph: rnd() * 100 });
     }
+    // на дне глубоких ям светятся кристаллы — зелёный свет снизу
+    for (let y = 1; y < MH - 1; y++) for (let x = 1; x < MW - 1; x++) {
+      const i = y * MW + x;
+      if (cells[i] !== 0 || fh[i] > -0.99 || lifts.has(i)) continue;
+      if (lamps.some(l => l.floor && Math.hypot(l.x - x - 0.5, l.y - y - 0.5) < 2.2)) continue;
+      lamps.push({ x: x + 0.5, y: y + 0.5, col: [0.35, 1.25, 0.45], r: 3.2, flick: false, ph: rnd() * 100, floor: true, fy: fh[i] + 0.3 });
+    }
     G = {
       n, MW, MH, cells, wtex, doors, enemies, items, shots: [], puffs: [], lamps,
+      fh, ch: chh, lifts,
       parts: [], decals: [], lights: [],
       px, py, dirX: 1, dirY: 0, planeX: 0, planeY: PLANE, pitch: 0,
+      pz: fAt(px, py), vz: 0, camZ: fAt(px, py),
       p: player || newPlayer(),
       wpTimer: 0, wpFrame: -1, wpSeq: 0, wpSwitch: 0, wpNext: -1,
       bob: 0, moving: 0, flashHurt: 0, flashPick: 0, muzzle: 0, shake: 0, deadT: 0, finT: 0, slowT: 0, stagHint: false,
@@ -637,21 +689,91 @@
     return true;
   }
   const wallAt = (x, y) => { const c = cellAt(x, y); return c === 1 || c === 4; };
-  function blocked(x, y, r) {
-    return solidAt(Math.floor(x - r), Math.floor(y - r)) || solidAt(Math.floor(x + r), Math.floor(y - r)) ||
-      solidAt(Math.floor(x - r), Math.floor(y + r)) || solidAt(Math.floor(x + r), Math.floor(y + r));
+  // высота пола и потолка клетки (лифт — текущая высота платформы)
+  function floorAt(x, y) {
+    if (x < 0 || y < 0 || x >= G.MW || y >= G.MH) return 99;
+    const i = y * G.MW + x, l = G.lifts.get(i);
+    return l ? l.h : G.fh[i];
+  }
+  function ceilAt(x, y) {
+    if (x < 0 || y < 0 || x >= G.MW || y >= G.MH) return -99;
+    return G.ch[y * G.MW + x];
+  }
+  const floorP = (x, y) => floorAt(Math.floor(x), Math.floor(y));
+  const STEP = 0.45;   // на сколько можно шагнуть вверх
+  // можно ли встать в клетку, находясь на высоте z (мутанты не прыгают в глубокие ямы)
+  function passable(cx, cy, z, enemy) {
+    if (solidAt(cx, cy)) return false;
+    if (z === undefined) return true;
+    const f = floorAt(cx, cy);
+    if (f - z > STEP) return false;
+    if (enemy && z - f > 1.1) return false;
+    if (ceilAt(cx, cy) - Math.max(f, z) < 0.7) return false;
+    return true;
+  }
+  function blocked(x, y, r, z, enemy) {
+    return !passable(Math.floor(x - r), Math.floor(y - r), z, enemy) || !passable(Math.floor(x + r), Math.floor(y - r), z, enemy) ||
+      !passable(Math.floor(x - r), Math.floor(y + r), z, enemy) || !passable(Math.floor(x + r), Math.floor(y + r), z, enemy);
   }
   function moveBody(o, dx, dy, r) {
-    if (!blocked(o.x + dx, o.y, r)) o.x += dx;
-    if (!blocked(o.x, o.y + dy, r)) o.y += dy;
+    if (!blocked(o.x + dx, o.y, r, o.z, o.enemy)) o.x += dx;
+    if (!blocked(o.x, o.y + dy, r, o.z, o.enemy)) o.y += dy;
   }
-  function sight(ax, ay, bx, by) {
+  // падение и шаги вверх: тело встаёт на пол клетки под собой
+  function settle(o, dt) {
+    const f = floorP(o.x, o.y);
+    if (o.z > f + 0.001) {
+      o.vz -= 12 * dt;
+      o.z += o.vz * dt;
+      if (o.z <= f) { const v = o.vz; o.z = f; o.vz = 0; return v; }
+    } else { o.z = f; o.vz = 0; }
+    return 0;
+  }
+  // видно ли точку b из точки a — с учётом стен, полов и потолков
+  function sight(ax, ay, bx, by, az, bz) {
     const d = Math.hypot(bx - ax, by - ay), n = Math.ceil(d / 0.1);
     for (let i = 1; i < n; i++) {
       const x = ax + (bx - ax) * i / n, y = ay + (by - ay) * i / n;
-      if (solidAt(Math.floor(x), Math.floor(y))) return false;
+      const cx = Math.floor(x), cy = Math.floor(y);
+      if (solidAt(cx, cy)) return false;
+      if (az !== undefined) {
+        const z = az + (bz - az) * i / n;
+        if (z < floorAt(cx, cy) || z > ceilAt(cx, cy)) return false;
+      }
     }
     return true;
+  }
+  // луч выстрела в 3D: стены, двери, ступени, пол и потолок. slope — наклон (тангенс угла)
+  function trace3D(ox, oy, oz, dx, dy, slope) {
+    let mx = Math.floor(ox), my = Math.floor(oy);
+    const ddx = Math.abs(1 / dx), ddy = Math.abs(1 / dy);
+    const stx = dx < 0 ? -1 : 1, sty = dy < 0 ? -1 : 1;
+    let sdx = dx < 0 ? (ox - mx) * ddx : (mx + 1 - ox) * ddx;
+    let sdy = dy < 0 ? (oy - my) * ddy : (my + 1 - oy) * ddy;
+    let t = 0;
+    for (let s = 0; s < 80; s++) {
+      const tn = Math.min(sdx, sdy);
+      // внутри текущей клетки: пол или потолок
+      const f = floorAt(mx, my), c = ceilAt(mx, my);
+      if (slope < 0) { const tf = (f - oz) / slope; if (tf >= t - 1e-6 && tf <= tn) return { d: tf, n: [0, 1, 0], y: f, door: false }; }
+      if (slope > 0) { const tc = (c - oz) / slope; if (tc >= t - 1e-6 && tc <= tn) return { d: tc, n: [0, -1, 0], y: c, door: false }; }
+      let side;
+      if (sdx < sdy) { sdx += ddx; mx += stx; side = 0; } else { sdy += ddy; my += sty; side = 1; }
+      t = tn;
+      const nrm = [side === 0 ? -stx : 0, 0, side === 1 ? -sty : 0];
+      const cell = cellAt(mx, my);
+      if (cell === 2 || cell === 3) {
+        const dr = G.doors.get(my * G.MW + mx);
+        let d, w;
+        if (side === 0) { d = (mx - ox + (1 - stx) / 2 + stx * 0.5) / dx; w = oy + d * dy - my; }
+        else { d = (my - oy + (1 - sty) / 2 + sty * 0.5) / dy; w = ox + d * dx - mx; }
+        if (w >= 0 && w < 1 && w >= dr.open) return { d, n: nrm, y: oz + slope * d, door: true };
+      } else if (cell) return { d: t, n: nrm, y: oz + slope * t, door: false };
+      // край ступени или нависающий потолок
+      const z = oz + slope * t;
+      if (z < floorAt(mx, my) || z > ceilAt(mx, my)) return { d: t, n: nrm, y: z, door: false };
+    }
+    return { d: 40, n: [0, 1, 0], y: oz, door: true };
   }
   // луч по клеткам: расстояние до стены/двери и нормаль поверхности
   function castRay(ox, oy, dx, dy) {
@@ -727,7 +849,7 @@ void main() {
     n = normalize(n + (T * (hL - hR) + B * (hU - hD)) * 2.4);
     // тени в углах: у пола и потолка, вдоль стен
     if (flr) ao = texture2D(uAO, vP.xz / uMap).r;
-    else ao = mix(0.5, 1.0, smoothstep(0.0, 0.28, vP.y)) * mix(0.72, 1.0, smoothstep(0.0, 0.16, 1.0 - vP.y));
+    // у стен тень в углах уже «запечена» в цвет вершин
   }
   vec3 V = normalize(uEye - vP);
   vec3 L = uAmb * ao;
@@ -801,10 +923,13 @@ void main() {
       const isWall = (x, z) => { const k = (x < 0 || z < 0 || x >= g.MW || z >= g.MH) ? 1 : g.cells[z * g.MW + x]; return k === 1 || k === 4; };
       for (let j = 0; j < AH; j++) for (let i = 0; i < AW; i++) {
         const x = (i + 0.5) / R, z = (j + 0.5) / R, cx = Math.floor(x), cz = Math.floor(z);
+        const f0 = g.fh[cz * g.MW + cx] || 0;
         let d = 1;
         for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
           const wx = cx + dx, wz = cz + dz;
-          if (!isWall(wx, wz)) continue;
+          // тень и у стены, и у подножия ступени/балкона
+          const higher = !isWall(wx, wz) && wx >= 0 && wz >= 0 && wx < g.MW && wz < g.MH && g.fh[wz * g.MW + wx] > f0 + 0.2;
+          if (!isWall(wx, wz) && !higher) continue;
           const ex = Math.max(wx - x, 0, x - wx - 1), ez = Math.max(wz - z, 0, z - wz - 1);
           d = Math.min(d, Math.hypot(ex, ez));
         }
@@ -870,28 +995,76 @@ void main() {
     const WHITE = [1, 1, 1, 0];
 
     // ---- статичная геометрия уровня (стены, пол, потолок, светильники)
+    // четырёхугольник с разным цветом низа и верха (для теней у пола и потолка)
+    function quadV(A, B, C, D, u0, v0, u1, v1, n, cb, ct) {
+      v(A[0], A[1], A[2], u0, v1, n[0], n[1], n[2], cb[0], cb[1], cb[2], cb[3]);
+      v(B[0], B[1], B[2], u1, v1, n[0], n[1], n[2], cb[0], cb[1], cb[2], cb[3]);
+      v(C[0], C[1], C[2], u1, v0, n[0], n[1], n[2], ct[0], ct[1], ct[2], ct[3]);
+      v(A[0], A[1], A[2], u0, v1, n[0], n[1], n[2], cb[0], cb[1], cb[2], cb[3]);
+      v(C[0], C[1], C[2], u1, v0, n[0], n[1], n[2], ct[0], ct[1], ct[2], ct[3]);
+      v(D[0], D[1], D[2], u0, v0, n[0], n[1], n[2], ct[0], ct[1], ct[2], ct[3]);
+    }
+    // вертикальная грань на краю клетки A (ax, az) со стороны соседа (dx, dz), от высоты y0 до y1.
+    // fA, cA — пол и потолок клетки A: возле них грань темнее (тень в углу)
+    function edgeFace(ax, az, dx, dz, y0, y1, fA, cA, emis) {
+      if (y1 - y0 < 0.001) return;
+      let P0, P1, n;
+      if (dx === -1) { P0 = [ax, az + 1]; P1 = [ax, az]; n = [1, 0, 0]; }
+      else if (dx === 1) { P0 = [ax + 1, az]; P1 = [ax + 1, az + 1]; n = [-1, 0, 0]; }
+      else if (dz === -1) { P0 = [ax, az]; P1 = [ax + 1, az]; n = [0, 0, 1]; }
+      else { P0 = [ax + 1, az + 1]; P1 = [ax, az + 1]; n = [0, 0, -1]; }
+      const AO = y => (0.55 + 0.45 * Math.min(1, Math.max(0, (y - fA) / 0.3))) * (0.75 + 0.25 * Math.min(1, Math.max(0, (cA - y) / 0.18)));
+      const cuts = [y0, fA + 0.3, cA - 0.18, y1].filter(t => t >= y0 && t <= y1).sort((a, b) => a - b);
+      for (let i = 0; i + 1 < cuts.length; i++) {
+        const ya = cuts[i], yb = cuts[i + 1];
+        if (yb - ya < 0.001) continue;
+        const ka = AO(ya), kb = AO(yb);
+        quadV([P0[0], ya, P0[1]], [P1[0], ya, P1[1]], [P1[0], yb, P1[1]], [P0[0], yb, P0[1]], 0, -yb, 1, -ya, n,
+          [ka, ka, ka, emis], [kb, kb, kb, emis]);
+      }
+    }
+    const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
     function build(g) {
       const groups = new Map();
       const add = (name, fn) => { if (!groups.has(name)) groups.set(name, []); groups.get(name).push(fn); };
-      for (let y = 0; y < g.MH; y++) for (let x = 0; x < g.MW; x++) {
-        const c = g.cells[y * g.MW + x];
-        if (c !== 1 && c !== 4) continue;
-        const name = c === 4 ? 'exit' : g.wtex[y * g.MW + x];
-        const emis = name === 'wall-window' ? 0.55 : c === 4 ? 0.25 : 0;
-        const col = [1, 1, 1, emis];
-        const open = (cx, cy) => { const k = (cx < 0 || cy < 0 || cx >= g.MW || cy >= g.MH) ? 1 : g.cells[cy * g.MW + cx]; return k !== 1 && k !== 4; };
-        if (open(x + 1, y)) add(name, () => quad([x + 1, 0, y + 1], [x + 1, 0, y], [x + 1, 1, y], [x + 1, 1, y + 1], 0, 0, 1, 1, [1, 0, 0], col));
-        if (open(x - 1, y)) add(name, () => quad([x, 0, y], [x, 0, y + 1], [x, 1, y + 1], [x, 1, y], 0, 0, 1, 1, [-1, 0, 0], col));
-        if (open(x, y + 1)) add(name, () => quad([x, 0, y + 1], [x + 1, 0, y + 1], [x + 1, 1, y + 1], [x, 1, y + 1], 0, 0, 1, 1, [0, 0, 1], col));
-        if (open(x, y - 1)) add(name, () => quad([x + 1, 0, y], [x, 0, y], [x, 1, y], [x + 1, 1, y], 0, 0, 1, 1, [0, 0, -1], col));
+      const L = LEVELS[g.n], MW = g.MW, MH = g.MH;
+      const stepTex = L.stepTex || 'wall-station';
+      const kind = (x, z) => (x < 0 || z < 0 || x >= MW || z >= MH) ? 1 : g.cells[z * MW + x];
+      const isW = (x, z) => { const k = kind(x, z); return k === 1 || k === 4; };
+      const lift = (x, z) => g.lifts.get(z * MW + x);
+      for (let z = 0; z < MH; z++) for (let x = 0; x < MW; x++) {
+        if (isW(x, z)) continue;
+        const i = z * MW + x, lf = lift(x, z);
+        const fA = lf ? lf.lo : g.fh[i], cA = g.ch[i];
+        // пол (у лифта — рисуется отдельно, он движется) и потолок
+        if (!lf) {
+          const ft = fA <= -0.99 && L.pitTex ? L.pitTex : 'floor';
+          add(ft, () => quad([x, fA, z + 1], [x + 1, fA, z + 1], [x + 1, fA, z], [x, fA, z], x, z, x + 1, z + 1, [0, 1, 0], WHITE));
+        }
+        add('ceil', () => quad([x, cA, z], [x + 1, cA, z], [x + 1, cA, z + 1], [x, cA, z + 1], x, z, x + 1, z + 1, [0, -1, 0], WHITE));
+        for (const [dx, dz] of DIRS) {
+          const nx = x + dx, nz = z + dz;
+          if (isW(nx, nz)) {
+            // стена: от пола до потолка этой клетки (у лифта — от нижнего положения)
+            const k = kind(nx, nz), name = k === 4 ? 'exit' : (g.wtex[nz * MW + nx] || stepTex);
+            const emis = name === 'wall-window' ? 0.55 : k === 4 ? 0.25 : 0;
+            add(name, () => edgeFace(x, z, dx, dz, fA, cA, fA, cA, emis));
+            continue;
+          }
+          if (lf || lift(nx, nz)) continue;   // края лифтов рисуются каждый кадр
+          const j = nz * MW + nx;
+          // ступенька вверх (видна из этой, нижней клетки)
+          if (g.fh[j] > fA + 0.001) add(stepTex, () => edgeFace(x, z, dx, dz, fA, g.fh[j], fA, cA, 0));
+          // уступ потолка (виден из этой, высокой клетки)
+          if (g.ch[j] < cA - 0.001) add(stepTex, () => edgeFace(x, z, dx, dz, g.ch[j], cA, fA, cA, 0));
+        }
       }
-      const MW = g.MW, MH = g.MH;
-      add('floor', () => quad([0, 0, MH], [MW, 0, MH], [MW, 0, 0], [0, 0, 0], 0, 0, MW, MH, [0, 1, 0], WHITE));
-      add('ceil', () => quad([0, 1, 0], [MW, 1, 0], [MW, 1, MH], [0, 1, MH], 0, 0, MW, MH, [0, -1, 0], WHITE));
       for (const l of g.lamps) {
-        const s = 0.16;
+        if (l.floor) continue;   // кристаллы на дне ямы — только свет
+        const s = 0.16, ly = g.ch[Math.floor(l.y) * MW + Math.floor(l.x)] - 0.002;
         const c = [l.col[0] > l.col[1] * 2 ? 1 : 0.95, l.col[0] > l.col[1] * 2 ? 0.35 : 0.97, l.col[0] > l.col[1] * 2 ? 0.3 : 0.95, 1];
-        add('lamp', () => quad([l.x - s, 0.998, l.y - s], [l.x + s, 0.998, l.y - s], [l.x + s, 0.998, l.y + s], [l.x - s, 0.998, l.y + s], 0, 0, 1, 1, [0, -1, 0], c));
+        add('lamp', () => quad([l.x - s, ly, l.y - s], [l.x + s, ly, l.y - s], [l.x + s, ly, l.y + s], [l.x - s, ly, l.y + s], 0, 0, 1, 1, [0, -1, 0], c));
       }
       building = true;
       bArr = new Float32Array(12 * 6 * 2000);
@@ -1131,7 +1304,8 @@ void main() {
         let k = 1;
         if (l.flick) { const q = Math.sin(t * 13 + l.ph) + Math.sin(t * 7.3 + l.ph * 2); k = q > 1.2 ? 0.15 : q > 0.6 ? 0.6 : 1; }
         l.kNow = k;
-        cand.push({ x: l.x, y: 0.92, z: l.y, r: l.r, c: l.col, k, s: d });
+        l.cy = g.ch[Math.floor(l.y) * g.MW + Math.floor(l.x)];
+        cand.push({ x: l.x, y: l.floor ? l.fy : l.cy - 0.08, z: l.y, r: l.r, c: l.col, k, s: d });
       }
       cand.sort((a, b) => a.s - b.s);
       LP.fill(0); LC.fill(0);
@@ -1166,13 +1340,28 @@ void main() {
         const cx = i % g.MW, cz = (i / g.MW) | 0;
         const name = g.cells[i] === 2 ? 'door' : 'locked';
         seg(name, 0, 0, 0);
-        const o = d.open;
+        const o = d.open, f = g.fh[i], c = g.ch[i];
         if (wallAt(cx - 1, cz) && wallAt(cx + 1, cz)) {
           const z = cz + 0.5;
-          quad([cx + o, 0, z], [cx + 1 + o, 0, z], [cx + 1 + o, 1, z], [cx + o, 1, z], 0, 0, 1, 1, [0, 0, 1], WHITE);
+          quad([cx + o, f, z], [cx + 1 + o, f, z], [cx + 1 + o, c, z], [cx + o, c, z], 0, f - c, 1, 0, [0, 0, 1], WHITE);
         } else {
           const x = cx + 0.5;
-          quad([x, 0, cz + 1 + o], [x, 0, cz + o], [x, 1, cz + o], [x, 1, cz + 1 + o], 0, 0, 1, 1, [1, 0, 0], WHITE);
+          quad([x, f, cz + 1 + o], [x, f, cz + o], [x, c, cz + o], [x, c, cz + 1 + o], 0, f - c, 1, 0, [1, 0, 0], WHITE);
+        }
+      }
+      // лифты: платформа и её борта
+      for (const l of g.lifts.values()) {
+        const x = l.x, z = l.y, h = l.h, cA = g.ch[z * g.MW + x];
+        seg('floor', 0, 0, 0);
+        quad([x, h, z + 1], [x + 1, h, z + 1], [x + 1, h, z], [x, h, z], x, z, x + 1, z + 1, [0, 1, 0], [1, 0.88, 0.55, 0]);
+        for (const [dx, dz] of DIRS) {
+          const nx = x + dx, nz = z + dz;
+          if (wallAt(nx, nz) || nx < 0 || nz < 0 || nx >= g.MW || nz >= g.MH) continue;
+          const fN = floorAt(nx, nz), cN = g.ch[nz * g.MW + nx];
+          // борт лифта виден снизу — полосатый, как у дверей
+          if (fN < h) { seg('door', 0, 0, 0); edgeFace(nx, nz, -dx, -dz, fN, h, fN, cN, 0); }
+          // соседний пол выше платформы — ступень видна с лифта
+          else if (fN > h) { seg(LEVELS[g.n].stepTex || 'wall-station', 0, 0, 0); edgeFace(x, z, dx, dz, h, fN, h, cA, 0); }
         }
       }
       // спрайты на полу: предметы, враги, трупы
@@ -1239,7 +1428,7 @@ void main() {
             ly -= (0.06 + Math.sin(g.time * 7) * 0.015) * h * top;
             if (v > hipY) lx += Math.sin(g.time * 4 + en.seed + 1) * 0.03 * h * ((v - hipY) / (1 - hipY));
           }
-          return [en.x + rx * lx, ly, en.y + rz * lx];
+          return [en.x + rx * lx, ly + en.z, en.y + rz * lx];
         };
         const C = 5, R = 10;
         const c = [1, 1, 1, 0];
@@ -1251,13 +1440,13 @@ void main() {
           }
         }
       };
-      for (const it of g.items) { const d = ITEM[it.kind], tt = TEX[d.tex]; if (tt) sprite(d.tex, it.x, it.y, tt.h * d.upp, 0, false, false, it.kind === 'k' ? 0.4 : 0); }
+      for (const it of g.items) { const d = ITEM[it.kind], tt = TEX[d.tex]; if (tt) sprite(d.tex, it.x, it.y, tt.h * d.upp, it.z, false, false, it.kind === 'k' ? 0.4 : 0); }
       for (const en of g.enemies) {
         if (en.st === 'gone') continue;
         const name = enemyFrame(en);
         const tt = TEX[name]; if (!tt) continue;
         if (alive(en)) enemyMesh(en, name, tt.h * en.def.upp, tt.w / tt.h, !name.endsWith('-walk'));
-        else sprite(name, en.x, en.y, tt.h * en.def.upp, 0, false, en.flash > 0, 0);
+        else sprite(name, en.x, en.y, tt.h * en.def.upp, en.z, false, en.flash > 0, 0);
       }
       // частицы и осколки — повёрнуты к камере
       const bill = (name, x, y, z, s, c, u0, v0, u1, v1) => {
@@ -1268,7 +1457,7 @@ void main() {
           [x - qx * s + ux * s, y - qy * s + uy * s, z - qz * s + uz * s],
           u0, v0, u1, v1, [0, 1, 0], c);
       };
-      for (const s of g.shots) bill('shard', s.x, 0.5, s.y, 0.07, [1, 1, 1, 1], 0, 0, 1, 1);
+      for (const s of g.shots) bill('shard', s.x, s.z, s.y, 0.07, [1, 1, 1, 1], 0, 0, 1, 1);
       for (const p of g.parts) if (!p.blend) bill(p.tex, p.x, p.y, p.z, p.s, p.c, p.u0, p.v0, p.u1, p.v1);
       const opaqueEnd = segs.length;
       // следы: кровь и дырки от пуль (полупрозрачные, прижаты к поверхности)
@@ -1322,10 +1511,12 @@ void main() {
       for (const l of g.lamps) {
         if (Math.hypot(l.x - ex, l.y - ez) > 14) continue;
         const k = l.kNow === undefined ? 1 : l.kNow;
-        glow(l.x, 0.97, l.y, 0.26, l.col[0] * 0.55 * k, l.col[1] * 0.55 * k, l.col[2] * 0.55 * k);
-        glow(l.x, 0.9, l.y, 0.7, l.col[0] * 0.12 * k, l.col[1] * 0.12 * k, l.col[2] * 0.12 * k);
+        if (l.floor) { glow(l.x, l.fy - 0.15, l.y, 0.7, 0.1, 0.35, 0.13); continue; }
+        const cy = l.cy || 1;
+        glow(l.x, cy - 0.03, l.y, 0.26, l.col[0] * 0.55 * k, l.col[1] * 0.55 * k, l.col[2] * 0.55 * k);
+        glow(l.x, cy - 0.1, l.y, 0.7, l.col[0] * 0.12 * k, l.col[1] * 0.12 * k, l.col[2] * 0.12 * k);
       }
-      for (const s of g.shots) glow(s.x, 0.5, s.y, 0.2, 0.25, 0.9, 0.35);
+      for (const s of g.shots) glow(s.x, s.z, s.y, 0.2, 0.25, 0.9, 0.35);
       let nCr = 0;
       for (const p of g.parts) if (p.kind === 'crystal' && nCr++ < 80) glow(p.x, p.y, p.z, 0.06, 0.15, 0.55, 0.2);
       for (const l of g.lights) { const k = l.t / l.t0; glow(l.x, l.y, l.z, l.r * 0.16, l.c[0] * 0.25 * k, l.c[1] * 0.25 * k, l.c[2] * 0.25 * k); }
@@ -1339,7 +1530,7 @@ void main() {
         for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
           const k = g.cells[(z + dz) * g.MW + x + dx];
           if (k !== 0 || Math.hypot(x + 0.5 - ex, z + 0.5 - ez) > 12) continue;
-          glow(x + 0.5 + dx * 0.56, 0.55, z + 0.5 + dz * 0.56, 0.55, 0.1, 0.4, 0.15);
+          glow(x + 0.5 + dx * 0.56, g.fh[(z + dz) * g.MW + x + dx] + 0.55, z + 0.5 + dz * 0.56, 0.55, 0.1, 0.4, 0.15);
         }
       }
       closeSegs();
@@ -1651,6 +1842,8 @@ void main() {
     const T = [t[0] * ca + b[0] * sa, t[1] * ca + b[1] * sa, t[2] * ca + b[2] * sa];
     const B = [-t[0] * sa + b[0] * ca, -t[1] * sa + b[1] * ca, -t[2] * sa + b[2] * ca];
     ar = ar || 1;
+    // след на полу/потолке ложится на высоту этой клетки
+    if (n[1] > 0) y = floorP(x, z); else if (n[1] < 0) y = ceilAt(Math.floor(x), Math.floor(z));
     // для вытянутого следа центр опускаем, чтобы пятно было в точке попадания, а потёки — ниже
     const yy = n[1] === 0 && ar > 1 ? y - size * (ar - 1) * 0.88 : y;
     G.decals.push({ x: x + n[0] * 0.004, y: yy + n[1] * 0.004, z: z + n[2] * 0.004, n, t: T, b: B, s: grow ? size * 0.25 : size, st: size, ar, tex: texName, c });
@@ -1661,7 +1854,7 @@ void main() {
     if (n[1] === 0) {
       // на стене потёки; не ниже пола
       const ar = 2;
-      if (y - size * 2.9 < 0.01) decal(x, y, z, n, size, 'splat' + ((rnd() * 4) | 0), c);
+      if (y - size * 2.9 < floorP(x + n[0] * 0.1, z + n[2] * 0.1) + 0.01) decal(x, y, z, n, size, 'splat' + ((rnd() * 4) | 0), c);
       else decal(x, y, z, n, size, 'wsplat' + ((rnd() * 4) | 0), c, ar);
     } else decal(x, y, z, n, size, 'splat' + ((rnd() * 4) | 0), c, 1, grow);
   }
@@ -1697,27 +1890,27 @@ void main() {
     const name = e.def.name + '-walk', tt = TEX[name], hgt = tt.h * e.def.upp;
     const k = goreK();
     SFX.gib();
-    light(e.x, 0.5, e.y, 3.5, [0.4, 1.4, 0.5], 0.35);
+    light(e.x, e.z + 0.5, e.y, 3.5, [0.4, 1.4, 0.5], 0.35);
     G.shake = Math.max(G.shake, 0.35);
     const chunks = Math.round(18 * k);
     for (let i = 0; i < chunks; i++) {
       // куски одежды/тела этого мутанта и просто мясо — с рваными краями
       const tex = rnd() < 0.62 ? 'gib-' + e.def.name + '-' + ((rnd() * 8) | 0) : 'meat-' + ((rnd() * 6) | 0);
       const sp = rr(1.5, 5.5);
-      part({ x: e.x, y: rr(0.15, hgt * 0.9), z: e.y, vx: dx * sp + rr(-2.2, 2.2), vy: rr(1, 4.2), vz: dy * sp + rr(-2.2, 2.2),
+      part({ x: e.x, y: e.z + rr(0.15, hgt * 0.9), z: e.y, vx: dx * sp + rr(-2.2, 2.2), vy: rr(1, 4.2), vz: dy * sp + rr(-2.2, 2.2),
         s: rr(0.035, 0.075), tex, c: [1, 1, 1, 0], kind: 'gib', life: 40, bounce: 0.22 });
     }
     for (let i = 0; i < 10; i++) {
-      part({ x: e.x, y: rr(0.2, hgt), z: e.y, vx: rr(-3, 3) + dx * 2, vy: rr(1, 4), vz: rr(-3, 3) + dy * 2, s: rr(0.02, 0.045), c: [0.7, 1, 0.7, 1], tex: 'shard', kind: 'crystal', life: 30, bounce: 0.45 });
+      part({ x: e.x, y: e.z + rr(0.2, hgt), z: e.y, vx: rr(-3, 3) + dx * 2, vy: rr(1, 4), vz: rr(-3, 3) + dy * 2, s: rr(0.02, 0.045), c: [0.7, 1, 0.7, 1], tex: 'shard', kind: 'crystal', life: 30, bounce: 0.45 });
     }
-    bloodBurst(e.x, hgt * 0.5, e.y, dx, dy, 60, 1.3);
+    bloodBurst(e.x, e.z + hgt * 0.5, e.y, dx, dy, 60, 1.3);
     if (k) { bloodDecal(e.x, 0, e.y, [0, 1, 0], rr(0.55, 0.75), true); bloodDecal(e.x + dx * 0.4, 0, e.y + dy * 0.4, [0, 1, 0], rr(0.3, 0.5), true); }
   }
 
   function ejectCasing(shell) {
     const rx = -G.dirY, rz = G.dirX;
     const x = G.px + G.dirX * 0.25 + rx * 0.12, z = G.py + G.dirY * 0.25 + rz * 0.12;
-    part({ x, y: EYE - 0.12, z, vx: rx * rr(1.2, 2) + G.dirX * 0.3, vy: rr(1.2, 2), vz: rz * rr(1.2, 2) + G.dirY * 0.3,
+    part({ x, y: G.camZ + EYE - 0.12, z, vx: rx * rr(1.2, 2) + G.dirX * 0.3, vy: rr(1.2, 2), vz: rz * rr(1.2, 2) + G.dirY * 0.3,
       s: shell ? 0.022 : 0.014, tex: shell ? 'shell' : 'casing', c: [1, 1, 1, 0], kind: 'shell', life: 12, bounce: 0.45 });
   }
 
@@ -1743,31 +1936,38 @@ void main() {
       const ox = p.x, oz = p.z;
       p.vy -= p.grav * dt;
       p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
-      // стена
-      if (wallAt(Math.floor(p.x), Math.floor(p.z)) || solidAt(Math.floor(p.x), Math.floor(p.z))) {
-        const hitX = Math.floor(ox) !== Math.floor(p.x), n = hitX ? [Math.sign(ox - p.x), 0, 0] : [0, 0, Math.sign(oz - p.z)];
-        if (p.kind === 'blood' && !wallAt(Math.floor(p.x), Math.floor(p.z))) { parts.splice(i, 1); continue; }
+      // стена или край ступени/балкона на пути
+      const ncx = Math.floor(p.x), ncz = Math.floor(p.z);
+      const crossed = ncx !== Math.floor(ox) || ncz !== Math.floor(oz);
+      const wallHit = solidAt(ncx, ncz) || (crossed && (p.y < floorAt(ncx, ncz) || p.y > ceilAt(ncx, ncz)));
+      if (wallHit) {
+        const hitX = Math.floor(ox) !== ncx, n = hitX ? [Math.sign(ox - p.x), 0, 0] : [0, 0, Math.sign(oz - p.z)];
         if (p.kind === 'blood') {
-          const wx = hitX ? (p.vx > 0 ? Math.floor(p.x) : Math.floor(p.x) + 1) : p.x;
-          const wz = hitX ? p.z : (p.vz > 0 ? Math.floor(p.z) : Math.floor(p.z) + 1);
-          if (p.y > 0.02 && p.y < 0.98 && rnd() < (p.s > 0.015 ? 0.85 : 0.35)) bloodDecal(wx, p.y, wz, n, p.s > 0.015 ? rr(0.09, 0.17) : rr(0.05, 0.11));
+          // на двери след не оставляем (она уезжает)
+          if (!(cellAt(ncx, ncz) === 2 || cellAt(ncx, ncz) === 3)) {
+            const wx = hitX ? (p.vx > 0 ? ncx : ncx + 1) : p.x;
+            const wz = hitX ? p.z : (p.vz > 0 ? ncz : ncz + 1);
+            if (rnd() < (p.s > 0.015 ? 0.85 : 0.35)) bloodDecal(wx, p.y, wz, n, p.s > 0.015 ? rr(0.09, 0.17) : rr(0.05, 0.11));
+          }
           parts.splice(i, 1);
           continue;
         }
         p.x = ox; p.z = oz;
         if (hitX) p.vx = -p.vx * 0.4; else p.vz = -p.vz * 0.4;
       }
+      const pcx = Math.floor(p.x), pcz = Math.floor(p.z);
+      const pf = floorAt(pcx, pcz), pc = ceilAt(pcx, pcz);
       // потолок
-      if (p.y > 0.99) { p.y = 0.99; p.vy = -Math.abs(p.vy) * 0.3; }
+      if (p.y > pc - 0.01) { p.y = pc - 0.01; p.vy = -Math.abs(p.vy) * 0.3; }
       // пол
-      if (p.y < p.s * 0.6) {
+      if (p.y < pf + p.s * 0.6) {
         if (p.kind === 'blood') {
-          if (rnd() < (p.s > 0.015 ? 0.7 : 0.25)) bloodDecal(p.x, 0, p.z, [0, 1, 0], p.s > 0.015 ? rr(0.08, 0.15) : rr(0.04, 0.09));
+          if (rnd() < (p.s > 0.015 ? 0.7 : 0.25)) bloodDecal(p.x, pf, p.z, [0, 1, 0], p.s > 0.015 ? rr(0.08, 0.15) : rr(0.04, 0.09));
           parts.splice(i, 1);
           continue;
         }
         if (p.kind === 'spark') { parts.splice(i, 1); continue; }
-        p.y = p.s * 0.6;
+        p.y = pf + p.s * 0.6;
         if (Math.abs(p.vy) > 0.6 && (p.kind === 'shell' || p.kind === 'crystal')) { const vol = Math.min(1, Math.abs(p.vy) / 3); atDist(p.x, p.z, () => { VS *= vol; SFX.tink(p.tex === 'shell'); }, 10); }
         if (Math.abs(p.vy) > 0.6 && p.kind === 'gib') atDist(p.x, p.z, () => SFX.splat(), 10);
         p.vy = -p.vy * p.bounce; p.vx *= 0.55; p.vz *= 0.55;
@@ -1808,9 +2008,27 @@ void main() {
     const run = input.keys.has('ShiftLeft') || input.keys.has('ShiftRight') ? 1.6 : 1;
     const sp = 3.2 * run * dt;
     const mvx = (G.dirX * fwd + -G.dirY * str) * sp, mvy = (G.dirY * fwd + G.dirX * str) * sp;
-    const o = { x: G.px, y: G.py };
+    // лифты едут
+    for (const l of G.lifts.values()) {
+      if (!G.liftHint && Math.hypot(G.px - l.x - 0.5, G.py - l.y - 0.5) < 1.3) {
+        G.liftHint = true;
+        say(isTouch ? 'Лифт: встаньте на платформу и нажмите «Открыть»' : 'Лифт: встаньте на платформу и нажмите E', 3);
+      }
+      if (l.h === l.target) continue;
+      const step = 0.9 * dt;
+      l.h = l.h < l.target ? Math.min(l.target, l.h + step) : Math.max(l.target, l.h - step);
+      if (l.h === l.target) atDist(l.x + 0.5, l.y + 0.5, () => SFX.liftStop(), 12);
+    }
+    const o = { x: G.px, y: G.py, z: G.pz, vz: G.vz };
     moveBody(o, mvx, mvy, 0.24);
     G.px = o.x; G.py = o.y;
+    // ступени и падение
+    const landV = settle(o, dt);
+    G.pz = o.z; G.vz = o.vz;
+    if (landV < -5) { hurt(Math.round((-landV - 5) * 10)); SFX.land(); G.shake = Math.max(G.shake, 0.5); }
+    else if (landV < -2.5) { SFX.land(); G.shake = Math.max(G.shake, 0.2); }
+    // камера догоняет плавно при шаге вверх, при падении — сразу
+    G.camZ = G.vz < 0 || G.camZ > G.pz ? G.pz : G.camZ + (G.pz - G.camZ) * Math.min(1, dt * 14);
     G.moving = Math.min(1, Math.hypot(mvx, mvy) / (3.2 * dt) || 0);
     if (G.moving > 0.05) G.bob += dt * 9;
 
@@ -1833,7 +2051,7 @@ void main() {
 
     for (let k = G.items.length - 1; k >= 0; k--) {
       const it = G.items[k];
-      if (Math.hypot(it.x - G.px, it.y - G.py) > 0.55) continue;
+      if (Math.hypot(it.x - G.px, it.y - G.py) > 0.55 || Math.abs(it.z - G.pz) > 0.6) continue;
       if (pickup(it.kind)) { G.items.splice(k, 1); G.found++; G.flashPick = 0.35; SFX.pickup(); }
     }
 
@@ -1862,13 +2080,14 @@ void main() {
     for (const e of G.enemies) updateEnemy(e, dt);
     for (let k = G.shots.length - 1; k >= 0; k--) {
       const s = G.shots[k];
-      s.x += s.dx * dt; s.y += s.dy * dt; s.life -= dt;
-      if (Math.hypot(s.x - G.px, s.y - G.py) < 0.35) { hurt(s.dmg, s.x - s.dx, s.y - s.dy); G.shots.splice(k, 1); continue; }
-      if (s.life <= 0 || solidAt(Math.floor(s.x), Math.floor(s.y))) {
+      s.x += s.dx * dt; s.y += s.dy * dt; s.z += s.vz * dt; s.life -= dt;
+      if (Math.hypot(s.x - G.px, s.y - G.py) < 0.35 && Math.abs(s.z - (G.pz + 0.45)) < 0.5) { hurt(s.dmg, s.x - s.dx, s.y - s.dy); G.shots.splice(k, 1); continue; }
+      const scx = Math.floor(s.x), scy = Math.floor(s.y);
+      if (s.life <= 0 || solidAt(scx, scy) || s.z < floorAt(scx, scy) || s.z > ceilAt(scx, scy)) {
         G.shots.splice(k, 1);
-        const bx = s.x - s.dx * dt, by = s.y - s.dy * dt;
+        const bx = s.x - s.dx * dt, by = s.y - s.dy * dt, bz = s.z - s.vz * dt;
         G.puffs.push({ x: bx, y: by, t: 0.25 });
-        for (let i = 0; i < 6; i++) part({ x: bx, y: 0.5, z: by, vx: rr(-2, 2), vy: rr(0, 2), vz: rr(-2, 2), s: 0.02, tex: 'shard', c: [0.7, 1, 0.7, 1], kind: 'crystal', life: 4, bounce: 0.4 });
+        for (let i = 0; i < 6; i++) part({ x: bx, y: bz, z: by, vx: rr(-2, 2), vy: rr(0, 2), vz: rr(-2, 2), s: 0.02, tex: 'shard', c: [0.7, 1, 0.7, 1], kind: 'crystal', life: 4, bounce: 0.4 });
       }
     }
     for (let k = G.puffs.length - 1; k >= 0; k--) { G.puffs[k].t -= dt; if (G.puffs[k].t <= 0) G.puffs.splice(k, 1); }
@@ -1915,7 +2134,7 @@ void main() {
     for (const e of G.enemies) {
       if (!alive(e) || (onlyStag && !(e.stag > 0))) continue;
       const dx = e.x - G.px, dy = e.y - G.py, d = Math.hypot(dx, dy);
-      if (d > bd || d < 0.01) continue;
+      if (d > bd || d < 0.01 || Math.abs(e.z - G.pz) > 0.7) continue;
       if ((dx * G.dirX + dy * G.dirY) / d < 0.78) continue;
       best = e; bd = d;
     }
@@ -1930,7 +2149,7 @@ void main() {
       const tt = TEX[e.def.name + '-walk'];
       SFX.bash();
       G.shake = Math.max(G.shake, 0.35);
-      bloodBurst(e.x - G.dirX * 0.2, tt.h * e.def.upp * 0.65, e.y - G.dirY * 0.2, G.dirX, G.dirY, 16, 0.9);
+      bloodBurst(e.x - G.dirX * 0.2, e.z + tt.h * e.def.upp * 0.65, e.y - G.dirY * 0.2, G.dirX, G.dirY, 16, 0.9);
       damage(e, 24 + rnd() * 14, G.dirX * 1.6, G.dirY * 1.6, false);
       return;
     }
@@ -1939,7 +2158,7 @@ void main() {
     if (wall.d < 1.25) {
       SFX.clang();
       G.shake = Math.max(G.shake, 0.2);
-      const hx = G.px + G.dirX * wall.d, hz = G.py + G.dirY * wall.d, y = EYE - 0.08;
+      const hx = G.px + G.dirX * wall.d, hz = G.py + G.dirY * wall.d, y = G.pz + EYE - 0.08;
       const n = [wall.nx, 0, wall.ny];
       if (!wall.door) decal(hx, y, hz, n, rr(0.05, 0.07), 'hole', [1, 1, 1, 0.8]);
       for (let i = 0; i < 9; i++) part({ x: hx + n[0] * 0.02, y, z: hz + n[2] * 0.02, vx: n[0] * rr(0.5, 2.5) + rr(-1.5, 1.5), vy: rr(0, 2.5), vz: n[2] * rr(0.5, 2.5) + rr(-1.5, 1.5), s: 0.012, c: [1, rr(0.6, 0.9), 0.3, 1], kind: 'spark', life: rr(0.2, 0.4), grav: 5 });
@@ -1952,9 +2171,9 @@ void main() {
     G.slowT = 0.7;
     G.shake = Math.max(G.shake, 0.7);
     SFX.bash(); SFX.finisher();
-    light(e.x, 0.6, e.y, 3.5, [0.5, 1.6, 0.6], 0.5);
+    light(e.x, e.z + 0.6, e.y, 3.5, [0.5, 1.6, 0.6], 0.5);
     const tt = TEX[e.def.name + '-walk'];
-    bloodBurst(e.x, tt.h * e.def.upp * 0.7, e.y, G.dirX, G.dirY, 40, 1.4);
+    bloodBurst(e.x, e.z + tt.h * e.def.upp * 0.7, e.y, G.dirX, G.dirY, 40, 1.4);
     damage(e, 999, G.dirX * 2, G.dirY * 2, true);
     G.p.hp = Math.min(Math.max(G.p.hp, 100), G.p.hp + 10);
     G.flashPick = 0.25;
@@ -1982,7 +2201,7 @@ void main() {
     if (gl3d) G.pitch = Math.min(0.95, G.pitch + w.kick * 0.04);
     SFX[w.sfx]();
     const isShot = w.id === 'shotgun';
-    light(G.px + G.dirX * 0.4, EYE, G.py + G.dirY * 0.4, isShot ? 5.5 : 4, [2.2, 1.6, 0.9], 0.07);
+    light(G.px + G.dirX * 0.4, G.pz + EYE, G.py + G.dirY * 0.4, isShot ? 5.5 : 4, [2.2, 1.6, 0.9], 0.07);
     if (w.id === 'pistol') ejectCasing(false);
     const hits = new Map();
     const pellets = isShot ? 8 : 1;
@@ -1999,9 +2218,11 @@ void main() {
   function shoot(off, voff, dmg, hits) {
     const c = Math.cos(off), s = Math.sin(off);
     const dx = G.dirX * c - G.dirY * s, dy = G.dirX * s + G.dirY * c;
-    const slope = Math.tan(G.pitch + voff);
-    const wall = castRay(G.px, G.py, dx, dy);
-    let best = null, bestT = wall.d;
+    const oz = G.pz + EYE;
+    let slope = Math.tan(G.pitch + voff);
+    // на телефоне и в классическом движке — автоприцел по высоте (как в старых шутерах)
+    const auto = isTouch || !gl3d;
+    let best = null, bestT = Infinity;
     for (const e of G.enemies) {
       if (!alive(e)) continue;
       const ex = e.x - G.px, ey = e.y - G.py;
@@ -2011,14 +2232,20 @@ void main() {
       if (perp > 0.3 + (isTouch ? 0.08 : 0)) continue;
       const tt = TEX[e.def.name + '-walk'];
       const eh = tt.h * e.def.upp;
-      const h = EYE + t * slope;
-      if (!isTouch && gl3d && (h < -0.05 || h > eh + 0.05)) continue;
-      best = e; bestT = t;
+      let sl = slope;
+      if (auto) sl = (e.z + eh * 0.55 - oz) / t + voff;
+      const h = oz + t * sl;
+      if (h < e.z - 0.05 || h > e.z + eh + 0.05) continue;
+      // не заслоняет ли стена, пол или край балкона
+      if (trace3D(G.px, G.py, oz, dx, dy, sl).d < t - 0.2) continue;
+      best = e; bestT = t; if (auto) slope = sl;
     }
+    const wall = trace3D(G.px, G.py, oz, dx, dy, slope);
+    if (best && bestT > wall.d) best = null;
     if (best) {
       const tt = TEX[best.def.name + '-walk'];
       const eh = tt.h * best.def.upp;
-      const h = Math.max(0.12, Math.min(eh * 0.92, EYE + bestT * slope));
+      const h = Math.max(best.z + 0.12, Math.min(best.z + eh * 0.92, oz + bestT * slope));
       const hx = G.px + dx * bestT, hz = G.py + dy * bestT;
       const prev = hits.get(best);
       if (prev) prev.dmg += dmg; else hits.set(best, { dmg, dx, dy, dist: bestT });
@@ -2027,10 +2254,8 @@ void main() {
       SFX.flesh();
       return;
     }
-    // куда попала пуля: стена, пол или потолок — что ближе
-    let t = wall.d, nrm = [wall.nx, 0, wall.ny], y = EYE + t * slope;
-    if (slope < 0 && -EYE / slope < t) { t = -EYE / slope; nrm = [0, 1, 0]; y = 0; }
-    else if (slope > 0 && (1 - EYE) / slope < t) { t = (1 - EYE) / slope; nrm = [0, -1, 0]; y = 1; }
+    // куда попала пуля: стена, ступень, пол или потолок
+    const t = wall.d, nrm = wall.n, y = wall.y;
     if (t > 30) return;
     const hx = G.px + dx * t, hz = G.py + dy * t;
     G.puffs.push({ x: hx - dx * 0.05, y: hz - dy * 0.05, t: 0.25 });
@@ -2065,7 +2290,7 @@ void main() {
         e.st = 'dying'; e.t = 0.45;
         SFX.die(); SFX.shatter();
         const tt = TEX[e.def.name + '-walk'];
-        bloodBurst(e.x, tt.h * e.def.upp * 0.5, e.y, dx, dy, 20, 1);
+        bloodBurst(e.x, e.z + tt.h * e.def.upp * 0.5, e.y, dx, dy, 20, 1);
         if (goreK()) setTimeout(() => { if (G && e.st !== 'gone') bloodDecal(e.x, 0, e.y, [0, 1, 0], rr(0.5, 0.72), true); }, 450);
       }
       if (G.kills === G.total) say('Все мутанты на уровне уничтожены!', 3);
@@ -2165,6 +2390,7 @@ void main() {
 
   function updateEnemy(e, dt) {
     if (e.flash > 0) e.flash -= dt;
+    if (e.st !== 'gone') settle(e, dt);   // стоит на полу, падает в ямы, едет на лифте
     if (e.st === 'gone' || e.st === 'dead') {
       if (e.st === 'dead' && (e.kx || e.ky)) slide(e, dt);
       return;
@@ -2173,7 +2399,8 @@ void main() {
     if (e.st === 'dying') { e.t -= dt; if (e.t <= 0) e.st = 'dead'; return; }
     const dx = G.px - e.x, dy = G.py - e.y, dist = Math.hypot(dx, dy);
     e.seeT -= dt;
-    if (e.seeT <= 0) { e.see = dist < 16 && sight(e.x, e.y, G.px, G.py); e.seeT = 0.2; }
+    if (e.seeT <= 0) { e.see = dist < 16 && sight(e.x, e.y, G.px, G.py, e.z + 0.6, G.pz + EYE); e.seeT = 0.2; }
+    const dz = Math.abs(e.z - G.pz);
     if (e.atk > 0) e.atk = Math.max(0, e.atk - dt);
     if (e.pain > 0) e.pain = Math.max(0, e.pain - dt);
     e.mv = Math.max(0, e.mv - dt * 3);
@@ -2196,7 +2423,7 @@ void main() {
       e.wind -= dt;
       if (e.wind > 0) return;
       if (e.windKind === 'melee') {
-        if (dist < (isTech ? 1.25 : 1.5)) { hurt(isTech ? 7 + rnd() * 4 : 14 + rnd() * 8, e.x, e.y); SFX.claw(); }
+        if (dist < (isTech ? 1.25 : 1.5) && dz < 0.65) { hurt(isTech ? 7 + rnd() * 4 : 14 + rnd() * 8, e.x, e.y); SFX.claw(); }
         else atDist(e.x, e.y, () => SFX.swing());   // промахнулся — свист клинка
         e.atk = 0.22;
       } else {
@@ -2204,14 +2431,16 @@ void main() {
         const a = (rnd() - 0.5) * 0.12;
         const ux = dx / dist, uy = dy / dist;
         const vx = ux * Math.cos(a) - uy * Math.sin(a), vy = ux * Math.sin(a) + uy * Math.cos(a);
-        G.shots.push({ x: e.x + vx * 0.4, y: e.y + vy * 0.4, dx: vx * sp, dy: vy * sp, dmg: 6 + rnd() * 5, life: 4 });
-        light(e.x, 0.5, e.y, 2.5, [0.3, 1.2, 0.4], 0.2);
+        // плевок летит туда, где у игрока голова, — сверху вниз или снизу вверх
+        const sz = e.z + 0.55, vz = (G.pz + 0.45 - sz) / Math.max(0.5, dist) * sp;
+        G.shots.push({ x: e.x + vx * 0.4, y: e.y + vy * 0.4, z: sz, dx: vx * sp, dy: vy * sp, vz, dmg: 6 + rnd() * 5, life: 4 });
+        light(e.x, e.z + 0.5, e.y, 2.5, [0.3, 1.2, 0.4], 0.2);
         atDist(e.x, e.y, () => SFX.spit());
         e.stun = 0.25; e.atk = 0.2;
       }
       return;
     }
-    if (dist < (isTech ? 0.95 : 1.15) && e.cd <= 0) {
+    if (dist < (isTech ? 0.95 : 1.15) && dz < 0.6 && e.cd <= 0) {
       e.wind = isTech ? 0.22 : 0.34; e.windKind = 'melee';
       e.cd = isTech ? 1.1 : 1.05;
       if (!isTech) atDist(e.x, e.y, () => SFX.growlAstro());
@@ -2220,7 +2449,8 @@ void main() {
     // техник иногда замирает, покачиваясь, — как будто прислушивается
     if (e.pauseT > 0) { e.pauseT -= dt; return; }
     if (isTech && dist > 3 && rnd() < dt * 0.15) { e.pauseT = 0.4 + rnd() * 0.8; return; }
-    if (isTech && e.see && dist > 1.8 && dist < 9 && e.cd <= 0) {
+    // плюётся издалека или если игрок недосягаем (выше или ниже)
+    if (isTech && e.see && (dist > 1.8 || dz > 0.6) && dist < 9 && e.cd <= 0) {
       e.wind = 0.32; e.windKind = 'spit';
       e.cd = 1.7 + rnd() * 1.2;
       return;
@@ -2281,6 +2511,15 @@ void main() {
     // оглушённый мутант рядом — добивание (лом сам оказывается в руке)
     const st = enemyInFront(1.5, true);
     if (st && !(G.finT > 0)) { SFX.swing(); finisher(st); return; }
+    // лифт под ногами или прямо впереди — поехали
+    for (const r of [0, 0.7, 1.2]) {
+      const l = G.lifts.get(Math.floor(G.py + G.dirY * r) * G.MW + Math.floor(G.px + G.dirX * r));
+      if (!l) continue;
+      if (l.h !== l.target) return;
+      l.target = l.h > (l.lo + l.hi) / 2 ? l.lo : l.hi;
+      atDist(l.x + 0.5, l.y + 0.5, () => SFX.lift(), 14);
+      return;
+    }
     for (const r of [0.6, 1.1, 1.5]) {
       const cx = Math.floor(G.px + G.dirX * r), cy = Math.floor(G.py + G.dirY * r);
       const c = cellAt(cx, cy);
@@ -2560,8 +2799,8 @@ void main() {
   // ---------- главный цикл ----------
   function camera() {
     const sh = G.shake;
-    let ey = EYE + Math.abs(Math.cos(G.bob)) * 0.015 * G.moving, pitch = G.pitch;
-    if (state === 'dead') { const k = Math.min(1, G.deadT / 0.8); ey = EYE - k * 0.38; pitch = G.pitch * (1 - k) + k * 0.25; }
+    let ey = G.camZ + EYE + Math.abs(Math.cos(G.bob)) * 0.015 * G.moving, pitch = G.pitch;
+    if (state === 'dead') { const k = Math.min(1, G.deadT / 0.8); ey = G.camZ + EYE - k * 0.38; pitch = G.pitch * (1 - k) + k * 0.25; }
     const jx = sh ? (rnd() - 0.5) * sh * 0.05 : 0, jy = sh ? (rnd() - 0.5) * sh * 0.04 : 0;
     return { eye: [G.px - G.dirY * jx, ey + jy, G.py + G.dirX * jx], pitch: pitch + (sh ? (rnd() - 0.5) * sh * 0.02 : 0) };
   }
