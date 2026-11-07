@@ -113,7 +113,7 @@
   const zbuf = new Float32Array(W);
 
   // ---------- настройки и прогресс ----------
-  const saved = { level: 1, gore: 2, q: 2, gl: true };
+  const saved = { level: 1, gore: 2, q: 2, gl: true, post: true };
   try {
     const s = JSON.parse(localStorage.getItem('pg95-lunar') || 'null');
     if (s) {
@@ -121,6 +121,7 @@
       if ([0, 1, 2].includes(s.gore)) saved.gore = s.gore;
       if ([1, 2, 3].includes(s.q)) saved.q = s.q;
       if (typeof s.gl === 'boolean') saved.gl = s.gl;
+      if (typeof s.post === 'boolean') saved.post = s.post;
       if (s.qv === 2) saved.qv = 2;
     }
   } catch (e) {}
@@ -459,6 +460,8 @@
       name: 'Жилой модуль',
       intro: 'Станция «Селена-7» не отвечает уже трое суток. Найдите красную карту доступа и доберитесь до шлюза (зелёная дверь).',
       amb: [0.17, 0.18, 0.22], lamp: [1.25, 1.17, 1.0], lampR: 4.4, red: 0,
+      // цветокоррекция «как в кино»: холодный станционный свет
+      grade: { tint: [0.96, 1.0, 1.08], sat: 0.92, con: 1.08, bloom: 0.85 },
       map: [
         '########################',
         '#P...#......W..........#',
@@ -482,6 +485,8 @@
       name: 'Кристальная шахта',
       intro: 'Внизу шахта, где добывали зелёный кристалл. Отсюда всё и началось. Карта доступа где-то в глубине.',
       amb: [0.1, 0.13, 0.11], lamp: [0.6, 1.15, 0.65], lampR: 3.8, red: 0,
+      // ядовито-зелёная шахта, кристаллы сильнее светятся
+      grade: { tint: [0.92, 1.06, 0.9], sat: 1.06, con: 1.12, bloom: 1.25 },
       map: [
         'RRRRRRRRRRRRRRRRRRRRRRRR',
         'RP....R.......R........R',
@@ -505,6 +510,8 @@
       name: 'Командный центр',
       intro: 'Последний рывок. За красной дверью — причал с эвакуационным шаттлом.',
       amb: [0.14, 0.15, 0.19], lamp: [1.05, 1.1, 1.25], lampR: 4.4, red: 0.35,
+      // тревожный командный центр: тёплые красные тени
+      grade: { tint: [1.07, 0.96, 0.95], sat: 0.95, con: 1.14, bloom: 1.0 },
       map: [
         '########################',
         '#P...#.....WWWW.....#..#',
@@ -944,11 +951,161 @@ void main() {
       }
     }
 
-    function resize(w, h) { cv.width = w; cv.height = h; if (gl) gl.viewport(0, 0, w, h); }
+    function resize(w, h) { cv.width = w; cv.height = h; if (gl) { gl.viewport(0, 0, w, h); postResize(); } }
+
+    // =================== кино-обработка кадра ===================
+    // кадр рисуется во внутреннюю текстуру, потом: свечение → цветокоррекция, виньетка, зерно, ранения
+    const QVS = `
+attribute vec2 aQ; varying vec2 vU;
+void main() { vU = aQ * 0.5 + 0.5; gl_Position = vec4(aQ, 0.0, 1.0); }`;
+    const HEAD = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+varying vec2 vU;`;
+    // яркие места, уменьшенные в 4 раза
+    const QFS_BRIGHT = HEAD + `
+uniform sampler2D uT; uniform vec2 uPx; uniform float uTh;
+void main() {
+  vec3 c = (texture2D(uT, vU + vec2(-uPx.x, -uPx.y)).rgb + texture2D(uT, vU + vec2(uPx.x, -uPx.y)).rgb +
+            texture2D(uT, vU + vec2(-uPx.x, uPx.y)).rgb + texture2D(uT, vU + vec2(uPx.x, uPx.y)).rgb) * 0.25;
+  float l = max(c.r, max(c.g, c.b));
+  gl_FragColor = vec4(c * smoothstep(uTh, uTh + 0.3, l), 1.0);
+}`;
+    // размытие по Гауссу в одну сторону
+    const QFS_BLUR = HEAD + `
+uniform sampler2D uT; uniform vec2 uDir;
+void main() {
+  vec3 c = texture2D(uT, vU).rgb * 0.227;
+  c += (texture2D(uT, vU + uDir * 1.385).rgb + texture2D(uT, vU - uDir * 1.385).rgb) * 0.316;
+  c += (texture2D(uT, vU + uDir * 3.231).rgb + texture2D(uT, vU - uDir * 3.231).rgb) * 0.070;
+  gl_FragColor = vec4(c, 1.0);
+}`;
+    // итог: свечение, цвет, контраст, виньетка, зерно, красные края при ранении, расслоение цвета
+    const QFS_FINAL = HEAD + `
+uniform sampler2D uT; uniform sampler2D uB;
+uniform vec3 uTint; uniform float uSat; uniform float uCon; uniform float uBloom;
+uniform float uVig; uniform float uGrain; uniform float uTime; uniform float uHurt; uniform float uLow; uniform float uAb;
+void main() {
+  vec2 d = vU - 0.5;
+  float r = length(d);
+  vec2 off = d * (uAb + uHurt * 0.012) * r * 2.0;
+  vec3 col = vec3(texture2D(uT, vU + off).r, texture2D(uT, vU).g, texture2D(uT, vU - off).b);
+  col += texture2D(uB, vU).rgb * uBloom;
+  col *= uTint;
+  float l = dot(col, vec3(0.3, 0.59, 0.11));
+  col = mix(vec3(l), col, uSat * (1.0 - uLow * 0.35));
+  col = (col - 0.5) * uCon + 0.5;
+  col *= 1.0 - uVig * smoothstep(0.32, 0.78, r);
+  float red = clamp(uHurt * 0.9 + uLow * 0.55, 0.0, 0.85) * smoothstep(0.18, 0.72, r);
+  col = mix(col, vec3(0.42, 0.0, 0.02), red);
+  float n = fract(sin(dot(vU * 917.0 + uTime * 61.3, vec2(12.9898, 78.233))) * 43758.5453);
+  col += (n - 0.5) * uGrain;
+  gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+    let post = null;
+    function mkProg(vs, fs) {
+      const sh = (type, src) => {
+        const s = gl.createShader(type);
+        gl.shaderSource(s, src); gl.compileShader(s);
+        if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+        return s;
+      };
+      const p = gl.createProgram();
+      gl.attachShader(p, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs));
+      gl.bindAttribLocation(p, 0, 'aQ');
+      gl.linkProgram(p);
+      if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+      const u = {};
+      const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+      for (let i = 0; i < n; i++) { const a = gl.getActiveUniform(p, i); u[a.name] = gl.getUniformLocation(p, a.name); }
+      return { p, u };
+    }
+    function mkTarget(w, h, depth) {
+      const t = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, t);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      const f = gl.createFramebuffer();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
+      let rb = null;
+      if (depth) {
+        rb = gl.createRenderbuffer();
+        gl.bindRenderbuffer(gl.RENDERBUFFER, rb);
+        gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
+        gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rb);
+      }
+      const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      return { t, f, rb, w, h, ok };
+    }
+    function freeTarget(x) { if (!x) return; gl.deleteTexture(x.t); gl.deleteFramebuffer(x.f); if (x.rb) gl.deleteRenderbuffer(x.rb); }
+    function initPost() {
+      try {
+        post = { bright: mkProg(QVS, QFS_BRIGHT), blur: mkProg(QVS, QFS_BLUR), fin: mkProg(QVS, QFS_FINAL), quad: gl.createBuffer(), main: null, b1: null, b2: null };
+        gl.bindBuffer(gl.ARRAY_BUFFER, post.quad);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1]), gl.STATIC_DRAW);
+      } catch (e) { post = null; }
+      gl.useProgram(prog);
+    }
+    function postResize() {
+      if (!post) return;
+      [post.main, post.b1, post.b2].forEach(freeTarget);
+      const w = cv.width, h = cv.height, bw = Math.max(16, w >> 2), bh = Math.max(16, h >> 2);
+      post.main = mkTarget(w, h, true); post.b1 = mkTarget(bw, bh, false); post.b2 = mkTarget(bw, bh, false);
+      if (!post.main.ok || !post.b1.ok || !post.b2.ok) { [post.main, post.b1, post.b2].forEach(freeTarget); post = null; }
+    }
+    const postOn = () => !!(post && post.main && saved.post);
+    function quadPass(pr, target, setup) {
+      gl.useProgram(pr.p);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, target ? target.f : null);
+      gl.viewport(0, 0, target ? target.w : cv.width, target ? target.h : cv.height);
+      setup(pr.u);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    }
+    function postProcess(g) {
+      gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND);
+      for (let i = 1; i < 4; i++) gl.disableVertexAttribArray(i);
+      gl.bindBuffer(gl.ARRAY_BUFFER, post.quad);
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 8, 0);
+      const gr = LEVELS[g.n].grade || { tint: [1, 1, 1], sat: 1, con: 1.05, bloom: 0.9 };
+      const m = post.main, b1 = post.b1, b2 = post.b2;
+      gl.activeTexture(gl.TEXTURE0);
+      // 1. яркое — в маленькую текстуру
+      quadPass(post.bright, b1, u => { gl.bindTexture(gl.TEXTURE_2D, m.t); gl.uniform1i(u.uT, 0); gl.uniform2f(u.uPx, 1 / m.w, 1 / m.h); gl.uniform1f(u.uTh, 0.62); });
+      // 2. размытие: по горизонтали и по вертикали, дважды — широкое мягкое свечение
+      for (let k = 0; k < 2; k++) {
+        quadPass(post.blur, b2, u => { gl.bindTexture(gl.TEXTURE_2D, b1.t); gl.uniform1i(u.uT, 0); gl.uniform2f(u.uDir, (1 + k) / b1.w, 0); });
+        quadPass(post.blur, b1, u => { gl.bindTexture(gl.TEXTURE_2D, b2.t); gl.uniform1i(u.uT, 0); gl.uniform2f(u.uDir, 0, (1 + k) / b1.h); });
+      }
+      // 3. итоговый кадр
+      const low = g.p.hp < 30 && g.p.hp > 0 ? (0.55 + 0.45 * Math.sin(g.time * 7)) * (1 - g.p.hp / 30) : 0;
+      quadPass(post.fin, null, u => {
+        gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, b1.t); gl.uniform1i(u.uB, 1);
+        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, m.t); gl.uniform1i(u.uT, 0);
+        gl.uniform3f(u.uTint, gr.tint[0], gr.tint[1], gr.tint[2]);
+        gl.uniform1f(u.uSat, gr.sat); gl.uniform1f(u.uCon, gr.con); gl.uniform1f(u.uBloom, gr.bloom);
+        gl.uniform1f(u.uVig, 0.5); gl.uniform1f(u.uGrain, 0.05); gl.uniform1f(u.uTime, g.time % 100);
+        gl.uniform1f(u.uHurt, Math.min(1, g.flashHurt)); gl.uniform1f(u.uLow, low); gl.uniform1f(u.uAb, 0.0025);
+      });
+      // вернуть состояние для обычного рисования
+      gl.useProgram(prog);
+      gl.enable(gl.DEPTH_TEST);
+      gl.activeTexture(gl.TEXTURE0);
+    }
 
     // ---- кадр
     function draw(g, cam) {
       const L = LEVELS[g.n];
+      const pp = postOn();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, pp ? post.main.f : null);
       gl.viewport(0, 0, cv.width, cv.height);
       gl.clearColor(0, 0, 0, 1);
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -1206,9 +1363,10 @@ void main() {
         gl.drawArrays(gl.TRIANGLES, s.start, s.count);
       }
       gl.disable(gl.BLEND); gl.depthMask(true); gl.disable(gl.POLYGON_OFFSET_FILL);
+      if (pp) postProcess(g);
     }
 
-    return { init, build, draw, resize, canvas: cv, ok: () => !!gl };
+    return { init: () => { const ok = init(); if (ok) initPost(); return ok; }, build, draw, resize, canvas: cv, ok: () => !!gl, postOn: () => !!gl && gl3d && postOn() };
   })();
 
   let gl3d = false; // рисуем через видеокарту?
@@ -1400,7 +1558,8 @@ void main() {
       ctx.fillRect(W / 2 - 1, VH / 2 - 4, 2, 3); ctx.fillRect(W / 2 - 1, VH / 2 + 2, 2, 3);
       ctx.fillRect(W / 2 - 5, VH / 2 - 1, 3, 2); ctx.fillRect(W / 2 + 3, VH / 2 - 1, 3, 2);
     }
-    if (G.flashHurt > 0) { ctx.fillStyle = 'rgba(200,0,0,' + Math.min(0.5, G.flashHurt) + ')'; ctx.fillRect(0, 0, W, VH); }
+    // с кино-эффектами ранение показывают красные края кадра, без них — красная вспышка
+    if (G.flashHurt > 0 && !GL.postOn()) { ctx.fillStyle = 'rgba(200,0,0,' + Math.min(0.5, G.flashHurt) + ')'; ctx.fillRect(0, 0, W, VH); }
     if (G.flashPick > 0) { ctx.fillStyle = 'rgba(255,220,80,' + Math.min(0.3, G.flashPick) + ')'; ctx.fillRect(0, 0, W, VH); }
     if (state === 'dead') { ctx.fillStyle = 'rgba(120,0,0,' + Math.min(0.55, G.deadT * 0.5) + ')'; ctx.fillRect(0, 0, W, VH); }
     if (G.msgT > 0) {
@@ -2174,6 +2333,7 @@ void main() {
       <button class="win95-button" data-m="sGore">Кровь: ${gore}</button>
       <button class="win95-button" data-m="sQ"${saved.gl && GL.ok() ? '' : ' disabled'}>Чёткость: ${q}</button>
       <button class="win95-button" data-m="sGL"${GL.ok() ? '' : ' disabled'}>Движок: ${eng}</button>
+      <button class="win95-button" data-m="sPost"${saved.gl && GL.ok() ? '' : ' disabled'}>Кино-эффекты: ${saved.post ? 'вкл' : 'выкл'}</button>
       <p class="ln-small">«Много» — брызги на стенах и разрывающиеся мутанты. «Мало» — немного крови без разрывов. Если игра тормозит, уменьшите чёткость.</p>
       <button class="win95-button" data-m="${optsBack}">Назад</button>`);
   }
@@ -2275,6 +2435,7 @@ void main() {
     else if (m === 'sGore') { saved.gore = (saved.gore + 2) % 3; store(); optsScreen(); }
     else if (m === 'sQ') { saved.q = saved.q % 3 + 1; store(); applyQuality(); optsScreen(); }
     else if (m === 'sGL') { saved.gl = !saved.gl; store(); applyQuality(); optsScreen(); }
+    else if (m === 'sPost') { saved.post = !saved.post; store(); optsScreen(); }
     else if (m === 'quit') close();
     else if (m === 'go' || m === 'resume') play();
     else if (m === 'restart') { startLevel(G.n, JSON.parse(JSON.stringify(levelStart))); play(); }
