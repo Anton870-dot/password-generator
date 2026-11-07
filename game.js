@@ -393,8 +393,10 @@
     const go = buf => {
       const s = c.createBufferSource(); s.buffer = buf;
       const g = c.createGain(); g.gain.value = 1.4;
-      s.connect(g); g.connect(master);
-      s.onended = () => { if (voiceSrc === s) voiceSrc = null; };
+      // анализатор громкости — по нему открывается рот на лице героя
+      voiceAn = c.createAnalyser(); voiceAn.fftSize = 512;
+      s.connect(voiceAn); voiceAn.connect(g); g.connect(master);
+      s.onended = () => { if (voiceSrc === s) { voiceSrc = null; voiceAn = null; } };
       s.start(); voiceSrc = s;
       if (G) G.face.talkT = buf.duration;   // пока говорит — лицо «разговаривает»
     };
@@ -405,7 +407,17 @@
       c.decodeAudioData(u8.buffer, buf => { VOICE[name] = buf; go(buf); }, () => {});
     } catch (e) {}
   }
-  function stopVoice() { if (voiceSrc) { try { voiceSrc.stop(); } catch (e) {} voiceSrc = null; } }
+  function stopVoice() { if (voiceSrc) { try { voiceSrc.stop(); } catch (e) {} voiceSrc = null; voiceAn = null; } }
+  let voiceAn = null, voiceBuf = null;
+  // насколько громко сейчас говорит герой (0…1)
+  function voiceLevel() {
+    if (!voiceAn) return 0;
+    if (!voiceBuf) voiceBuf = new Uint8Array(voiceAn.fftSize);
+    voiceAn.getByteTimeDomainData(voiceBuf);
+    let s = 0;
+    for (let i = 0; i < voiceBuf.length; i++) { const v = (voiceBuf[i] - 128) / 128; s += v * v; }
+    return Math.min(1, Math.sqrt(s / voiceBuf.length) * 7);
+  }
 
   // звук из точки уровня: чем дальше, тем тише
   function atDist(x, y, fn, range) {
@@ -1879,6 +1891,18 @@ void main() {
       ctx.imageSmoothingEnabled = K > 1;
       ctx.drawImage(IMG[fimg], fx + 1, y + 1, fs, fs);
       faceBlood(fx + 1, y + 1, fs, p.hp, fimg);
+      // герой говорит: рот открывается в такт голосу
+      if (voiceAn && /face-(center|calm|left|right|bloody)/.test(fimg)) {
+        const f = G.face;
+        f.mouth = (f.mouth || 0) + (voiceLevel() - (f.mouth || 0)) * 0.5;
+        const m = f.mouth;
+        if (m > 0.05) {
+          const mx = fx + 1 + fs * 0.5, my = y + 1 + fs * 0.665;
+          ctx.fillStyle = 'rgba(40,10,8,0.92)';
+          ctx.beginPath(); ctx.ellipse(mx, my, fs * 0.075, fs * (0.006 + 0.034 * m), 0, 0, Math.PI * 2); ctx.fill();
+          if (m > 0.35) { ctx.fillStyle = 'rgba(235,225,205,0.85)'; ctx.fillRect(mx - fs * 0.05, my - fs * (0.006 + 0.034 * m), fs * 0.1, fs * 0.012); }
+        }
+      }
       ctx.restore();
       ctx.imageSmoothingEnabled = false;
     }
@@ -2692,6 +2716,7 @@ void main() {
   function hideMenu() { menu.classList.remove('show'); }
 
   function titleScreen() {
+    stopVoice();
     state = 'title';
     const cont = saved.level > 1 ? `<button class="win95-button" data-m="cont">Продолжить: уровень ${saved.level}</button>` : '';
     showMenu(`
@@ -2820,7 +2845,12 @@ void main() {
     else if (m === 'sGL') { saved.gl = !saved.gl; store(); applyQuality(); optsScreen(); }
     else if (m === 'sPost') { saved.post = !saved.post; store(); optsScreen(); }
     else if (m === 'quit') close();
-    else if (m === 'go' || m === 'resume') play();
+    else if (m === 'go') {
+      play();
+      // в начале игры герой говорит
+      if (G && G.n === 0 && !G.voiced) { G.voiced = true; setTimeout(() => { if (open && state === 'play') playVoice('hero-intro'); }, 350); }
+    }
+    else if (m === 'resume') play();
     else if (m === 'restart') { startLevel(G.n, JSON.parse(JSON.stringify(levelStart))); play(); }
     else if (m === 'next') begin(G.n + 1, Object.assign({}, G.p, { hp: Math.max(G.p.hp, 50), key: false }));
     else if (m === 'title') titleScreen();
@@ -3062,6 +3092,7 @@ void main() {
   }
 
   function close() {
+    stopVoice();
     if (state === 'play') pauseScreen();
     open = false;
     win.classList.remove('show');
